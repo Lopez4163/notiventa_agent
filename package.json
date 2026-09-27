@@ -1,0 +1,40 @@
+{
+  "name": "notiventa_agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows-first NotiVenta desktop Agent",
+  "main": "out/main/index.js",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^2.1.0",
+    "electron-store": "^11.0.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-vite": "^5.0.0",
+    "jsdom": "^27.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^7.2.2",
+    "vitest": "^4.1.11"
+  }
+}
