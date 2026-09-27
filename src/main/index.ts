@@ -11,6 +11,7 @@ import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
 import { handleWindowClose } from './window-lifecycle'
+import { PRELOAD_OUTPUT_FILENAME } from '../shared/build-artifacts'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -32,7 +33,7 @@ app.whenReady().then(async () => {
     settings,
     detectSystemName()
   )
-  mainWindow = createMainWindow(join(__dirname, '../preload/index.mjs'), {
+  mainWindow = createMainWindow(join(__dirname, `../preload/${PRELOAD_OUTPUT_FILENAME}`), {
     isPackaged: app.isPackaged,
     rendererUrl: process.env.ELECTRON_RENDERER_URL
   })

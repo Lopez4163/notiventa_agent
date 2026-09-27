@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { BrowserWindow } from 'electron'
+import { contentSecurityPolicy } from './content-security-policy'
 import { resolveDevelopmentRendererUrl } from './renderer-location'
 
 export function createMainWindow(
@@ -27,6 +28,15 @@ export function createMainWindow(
   window.once('ready-to-show', () => window.show())
 
   const rendererUrl = resolveDevelopmentRendererUrl(options.rendererUrl, options.isPackaged)
+  const policy = contentSecurityPolicy(rendererUrl)
+  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy]
+      }
+    })
+  })
   if (rendererUrl) void window.loadURL(rendererUrl)
   else void window.loadFile(join(__dirname, '../renderer/index.html'))
   return window
