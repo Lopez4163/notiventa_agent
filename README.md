@@ -29,6 +29,10 @@ npm run typecheck
 npm run build
 ```
 
+Windows 11 UTM validation instructions and the manual results checklist are in
+[`docs/windows-phase4-validation.md`](docs/windows-phase4-validation.md) and
+[`docs/windows-phase4-validation-checklist.md`](docs/windows-phase4-validation-checklist.md).
+
 ## Architecture and security
 
 ```text
