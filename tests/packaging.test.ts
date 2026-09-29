@@ -13,7 +13,7 @@ const mainSource = readFileSync(resolve('src/main/index.ts'), 'utf8')
 
 describe('Windows staging packaging foundation', () => {
   it('uses electron-builder and explicit x64 and ARM64 scripts without IA32', () => {
-    expect(packageJson.devDependencies['electron-builder']).toMatch(/^\^26\./)
+    expect(packageJson.devDependencies['electron-builder']).toBe('26.15.6')
     expect(packageJson.scripts['package:staging:win:x64']).toContain('x64')
     expect(packageJson.scripts['package:staging:win:arm64']).toContain('arm64')
     expect(builderConfig).toContain('- x64')
