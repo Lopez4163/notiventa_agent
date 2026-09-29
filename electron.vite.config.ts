@@ -5,7 +5,15 @@ import { PRELOAD_OUTPUT_FILENAME } from './src/shared/build-artifacts'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    define: {
+      __NOTIVENTA_AGENT_PACKAGED_ENVIRONMENT__: JSON.stringify(
+        process.env.NOTIVENTA_AGENT_PACKAGE_ENV ?? null
+      ),
+      __NOTIVENTA_AGENT_PACKAGED_BACKEND_URL__: JSON.stringify(
+        process.env.NOTIVENTA_AGENT_PACKAGE_BACKEND_URL ?? null
+      )
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

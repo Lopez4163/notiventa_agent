@@ -22,6 +22,35 @@ describe('Agent configuration', () => {
     })).toThrow(/HTTPS/)
   })
 
+  it('uses immutable packaged staging configuration instead of runtime environment overrides', () => {
+    const config = loadAgentConfig({
+      env: {
+        NOTIVENTA_AGENT_ENV: 'production',
+        NOTIVENTA_AGENT_BACKEND_URL: 'https://production.example.com'
+      },
+      packaged: {
+        environment: 'staging',
+        backendUrl: 'https://staging.example.com'
+      },
+      version: '1.0.0',
+      platform: 'windows'
+    })
+    expect(config.environment).toBe('staging')
+    expect(config.backendUrl.href).toBe('https://staging.example.com/')
+  })
+
+  it('does not fall back to runtime environment variables when packaged configuration is missing', () => {
+    expect(() => loadAgentConfig({
+      env: {
+        NOTIVENTA_AGENT_ENV: 'production',
+        NOTIVENTA_AGENT_BACKEND_URL: 'https://production.example.com'
+      },
+      packaged: { environment: null, backendUrl: null },
+      version: '1.0.0',
+      platform: 'windows'
+    })).toThrow(/NOTIVENTA_AGENT_ENV/)
+  })
+
   it('reports the real operating-system platform', () => {
     expect(platformIdentifier('win32')).toBe('windows')
     expect(platformIdentifier('darwin')).toBe('macos')

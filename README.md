@@ -29,6 +29,29 @@ npm run typecheck
 npm run build
 ```
 
+## Windows staging packaging
+
+Phase 5 packaging uses electron-builder and an NSIS `.exe` installer. Official
+artifacts must be created on Windows with Node/npm matching the requested
+architecture. Set the non-secret staging backend URL in the current PowerShell
+session, then build one architecture:
+
+```powershell
+$env:NOTIVENTA_AGENT_STAGING_BACKEND_URL = "https://<STAGING_BACKEND_URL>"
+npm ci
+npm run package:staging:win:x64
+# or, with Windows/Node ARM64:
+npm run package:staging:win:arm64
+```
+
+Installers appear under `dist/staging` with names such as
+`NotiVenta-Staging-Setup-1.0.0-x64.exe`. The package embeds only the staging
+environment and backend URL; installed users do not configure shell variables
+or select an environment.
+
+Detailed build and validation instructions are in
+[`docs/windows-phase5-packaging-validation.md`](docs/windows-phase5-packaging-validation.md).
+
 Windows 11 UTM validation instructions and the manual results checklist are in
 [`docs/windows-phase4-validation.md`](docs/windows-phase4-validation.md) and
 [`docs/windows-phase4-validation-checklist.md`](docs/windows-phase4-validation-checklist.md).
@@ -56,4 +79,7 @@ temporary-disconnection and revocation behavior, authoritative status display,
 tray background lifecycle, and Start with Windows preferences.
 
 Not implemented: printers, label files, physical printing, PrintAttempt,
-dispatch, retries, result events/outbox, installer/signing, or auto-update.
+dispatch, retries, result events/outbox, production signing, or auto-update.
+
+Phase 5.2 adds the Windows staging packaging foundation. Packaged keyring
+acceptance and packaged Start with Windows acceptance remain Phase 5.3 and 5.4.
