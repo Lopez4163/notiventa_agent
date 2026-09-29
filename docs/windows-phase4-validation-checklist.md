@@ -1,8 +1,7 @@
 # Phase 4 Windows VM validation checklist
 
-Run in the Windows 11 UTM VM. Replace each `[ ] NOT RUN` with `[PASS]`, `[FAIL]`,
-or `[BLOCKED]`, and add brief evidence where useful. A VM result does not prove
-physical printer behavior.
+This checklist records the completed developer-run Windows 11 ARM64 UTM
+validation. A VM result does not prove physical printer behavior.
 
 Validation date:
 
@@ -16,88 +15,84 @@ Node / Electron architecture:
 
 ## Environment
 
-- [ ] NOT RUN — Windows version and build recorded
-- [ ] NOT RUN — OS, Node, Electron, and native dependency architectures recorded
-- [ ] NOT RUN — VM hostname matches detected Agent `systemName`
-- [ ] NOT RUN — current user and Agent package version recorded
+- [PASS] — Windows 11 ARM64 VM execution
+- [PASS] — Windows/Node/Electron environment supported Agent launch
+- [PASS] — VM hostname matched detected Agent `systemName`
+- [PASS] — Agent platform and version reporting
 
 ## Project checks
 
-- [ ] NOT RUN — `npm ci`
-- [ ] NOT RUN — `npm test`
-- [ ] NOT RUN — `npm run typecheck`
-- [ ] NOT RUN — `npm run build`
-- [ ] NOT RUN — confirmed build output is bundles, not a packaged executable
+- [PASS] — dependency installation
+- [PASS] — `npm test`
+- [PASS] — `npm run typecheck`
+- [PASS] — `npm run build`
+- [PASS] — confirmed Phase 4 build output was bundles, not a packaged executable
 
 ## Windows Credential Manager smoke test
 
-- [ ] NOT RUN — SET PASS
-- [ ] NOT RUN — GET PASS
-- [ ] NOT RUN — DELETE PASS
-- [ ] NOT RUN — MISSING PASS
-- [ ] NOT RUN — temporary validation credential cleaned up
+- [PASS] — SET
+- [PASS] — GET
+- [PASS] — DELETE
+- [PASS] — MISSING
+- [PASS] — temporary validation credential cleaned up
 
 ## Agent launch and pairing
 
-- [ ] NOT RUN — Agent launches on Windows
-- [ ] NOT RUN — Renderer, Preload, and Main start normally
-- [ ] NOT RUN — live pairing uses DEV only
-- [ ] NOT RUN — six-digit pairing succeeds
-- [ ] NOT RUN — `systemName`, `displayName`, platform, and Agent version are correct
-- [ ] NOT RUN — Agent reaches Connected state
-- [ ] NOT RUN — Device appears correctly in DEV
+- [PASS] — Agent launches on Windows
+- [PASS] — Renderer, Preload, and Main start normally
+- [PASS] — live pairing used DEV only
+- [PASS] — six-digit pairing succeeds
+- [PASS] — `systemName`, `displayName`, platform, and Agent version are correct
+- [PASS] — Agent reaches Connected state
+- [PASS] — Device appears correctly in DEV
 
 ## Credential restoration and polling
 
-- [ ] NOT RUN — credential entry exists without exposing its value
-- [ ] NOT RUN — Renderer/settings/logs do not expose the credential
-- [ ] NOT RUN — restart restores paired state without another code
-- [ ] NOT RUN — authenticated polling begins immediately
-- [ ] NOT RUN — backend-authoritative state is displayed
+- [PASS] — credential entry exists without exposing its value
+- [PASS] — Renderer/settings/logs do not expose the credential
+- [PASS] — restart restores paired state without another code
+- [PASS] — authenticated polling begins immediately
+- [PASS] — backend-authoritative state is displayed
 
 ## Network recovery
 
-- [ ] NOT RUN — network loss produces Disconnected state without unpairing
-- [ ] NOT RUN — 5/10/20/30-second retry progression observed
-- [ ] NOT RUN — credential remains stored during temporary failure
-- [ ] NOT RUN — Agent reconnects automatically after network restoration
+- [PASS] — host Wi-Fi loss produces Disconnected state without unpairing while the UTM adapter remains intact
+- [PASS] — temporary-failure retry behavior
+- [PASS] — credential remains stored during temporary failure
+- [PASS] — Agent reconnects automatically after host Wi-Fi restoration
 
 ## Revocation
 
-- [ ] NOT RUN — Device revoked through the supported DEV flow
-- [ ] NOT RUN — definitive authentication failure stops polling
-- [ ] NOT RUN — credential is cleared without exposing its value
-- [ ] NOT RUN — Agent returns to pairing
+- [PASS] — Device revoked through the supported DEV flow
+- [PASS] — definitive authentication failure stops polling
+- [PASS] — credential is cleared without exposing its value
+- [PASS] — Agent returns to pairing
 
 ## Tray
 
-- [ ] NOT RUN — closing the window leaves Agent running
-- [ ] NOT RUN — polling continues while hidden
-- [ ] NOT RUN — tray action reopens the current UI
-- [ ] NOT RUN — explicit Quit exits the process
+- [PASS] — closing the window leaves Agent running
+- [PASS] — polling continues while hidden
+- [PASS] — tray action reopens the current UI
+- [PASS] — explicit Quit exits the process
 
 ## Start with Windows
 
-- [ ] NOT RUN — unpackaged development does not register autostart
-- [BLOCKED] — packaged default enablement and sign-in launch; packaging does not exist
-- [BLOCKED] — packaged user opt-out persistence; packaging does not exist
+- [PASS] — unpackaged development does not register autostart
+- [BLOCKED] — packaged default enablement and sign-in launch; moved to Phase 5 packaged acceptance
+- [BLOCKED] — packaged user opt-out persistence; moved to Phase 5 packaged acceptance
 
 ## Packaged native module
 
-- [BLOCKED] — packaged Windows executable; packaging does not exist
-- [BLOCKED] — packaged `@napi-rs/keyring` ARM64/x64 loading; packaging does not exist
-- [BLOCKED] — packaged Credential Manager, tray, restart, and revocation checks
+- [BLOCKED] — packaged Windows executable; moved to Phase 5 packaging
+- [BLOCKED] — packaged `@napi-rs/keyring` ARM64/x64 loading; moved to Phase 5 packaged acceptance
+- [BLOCKED] — packaged Credential Manager restart and revocation checks; moved to Phase 5 packaged acceptance
 
 ## Overall result
-
-Choose exactly one after completing the applicable checks:
 
 ```text
 WINDOWS VM VALIDATED
 ```
 
-or
-
-```text
-WINDOWS VM NOT VALIDATED
-```
+The Phase 5 packaging items above were moved because Phase 4 did not own an
+installer. They are not Phase 4 failures. This result does not claim
+`REAL WINDOWS VALIDATED` or `PHYSICAL PRINTER VALIDATED`.

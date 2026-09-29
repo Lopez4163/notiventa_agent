@@ -6,6 +6,7 @@ import { loadAgentConfig } from './config'
 import { WindowsCredentialStore } from './credential-store'
 import { registerAgentIpc } from './ipc'
 import { detectSystemName, platformIdentifier } from './platform'
+import { PACKAGED_AGENT_BUILD_CONFIG } from './packaged-config'
 import { ElectronSettingsStore } from './settings-store'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
@@ -21,7 +22,11 @@ let controller: AgentController | null = null
 
 app.whenReady().then(async () => {
   const platform = platformIdentifier()
-  const config = loadAgentConfig({ version: app.getVersion(), platform })
+  const config = loadAgentConfig({
+    version: app.getVersion(),
+    platform,
+    packaged: app.isPackaged ? PACKAGED_AGENT_BUILD_CONFIG : undefined
+  })
   const settings = new ElectronSettingsStore()
   const credentials = new WindowsCredentialStore()
   const startup = new StartupService(app)

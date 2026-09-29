@@ -7,19 +7,29 @@ export interface AgentConfig {
   platform: string
 }
 
+export interface PackagedAgentBuildConfig {
+  environment: AgentEnvironment | null
+  backendUrl: string | null
+}
+
 const environments = new Set<AgentEnvironment>(['development', 'staging', 'production'])
 
 export function loadAgentConfig(options: {
   env?: NodeJS.ProcessEnv
   version: string
   platform: string
+  packaged?: PackagedAgentBuildConfig
 }): AgentConfig {
   const env = options.env ?? process.env
-  const environment = env.NOTIVENTA_AGENT_ENV ?? 'development'
+  const environment = options.packaged
+    ? options.packaged.environment
+    : env.NOTIVENTA_AGENT_ENV ?? 'development'
   if (!environments.has(environment as AgentEnvironment)) {
     throw new Error('NOTIVENTA_AGENT_ENV must be development, staging, or production.')
   }
-  const rawUrl = env.NOTIVENTA_AGENT_BACKEND_URL
+  const rawUrl = options.packaged
+    ? options.packaged.backendUrl
+    : env.NOTIVENTA_AGENT_BACKEND_URL
   if (!rawUrl) throw new Error('NOTIVENTA_AGENT_BACKEND_URL is required.')
   const backendUrl = new URL(rawUrl)
   const isLocalDevelopment =
