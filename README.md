@@ -81,5 +81,8 @@ tray background lifecycle, and Start with Windows preferences.
 Not implemented: printers, label files, physical printing, PrintAttempt,
 dispatch, retries, result events/outbox, production signing, or auto-update.
 
-Phase 5.2 adds the Windows staging packaging foundation. Packaged keyring
+Phase 5.2 completed the Windows staging packaging foundation. Packaged keyring
 acceptance and packaged Start with Windows acceptance remain Phase 5.3 and 5.4.
+The Windows ARM64 reference installer requires the pinned `electron-builder`
+26.15.6 release, which fixes the ARM64 NSIS extraction regression encountered
+with 26.15.3.

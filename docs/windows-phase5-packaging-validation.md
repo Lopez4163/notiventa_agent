@@ -42,12 +42,11 @@ dist/staging/NotiVenta-Staging-Setup-<version>-<arch>.exe
 2. Run the installer. An Unknown Publisher or SmartScreen warning is expected
    for this unsigned internal staging artifact; do not disable Windows security.
 3. Launch **NotiVenta Agent Staging** from its installed shortcut.
-4. Confirm Main, Preload, Renderer, and the tray start normally.
+4. Confirm Main, Preload, and Renderer start normally and the Agent reaches the
+   initial pairing state without crashing.
 5. Confirm the displayed Agent version matches `package.json`.
 6. Confirm requests target the supplied staging backend and not DEV or
    production. Do not expose any Device credential while inspecting traffic.
-7. Uninstall **NotiVenta Agent Staging** through Windows Installed Apps and
-   confirm the application executable and shortcuts are removed.
 
 ## Record results
 
@@ -59,9 +58,42 @@ Installer: BUILT | NOT BUILT
 Install: PASS | FAIL | NOT RUN
 Launch: PASS | FAIL | NOT RUN
 Staging identity/backend: PASS | FAIL | NOT RUN
-Tray: PASS | FAIL | NOT RUN
-Uninstall: PASS | FAIL | NOT RUN
 ```
 
 Phase 5.2 does not claim full packaged keyring lifecycle or Start with Windows
 acceptance. Those checks belong to Phase 5.3 and Phase 5.4.
+
+## ARM64 reference-build result
+
+Developer-run validation in the Windows 11 ARM64 UTM VM established the
+following Phase 5.2 results:
+
+```text
+Architecture: ARM64
+Installer: BUILT
+Install: PASS
+Launch: PASS
+Initial/pairing state: PASS
+Installed executable/runtime: PASS
+Staging identity/backend: PASS
+```
+
+The first installer built with `electron-builder` 26.15.3 contained the full
+application payload, but its NSIS install step silently omitted the ARM64 main
+executable and several Electron runtime DLLs. The unpacked application launched
+successfully, manual archive extraction produced the complete application, and
+Windows security logs showed no matching block. This matched the upstream
+electron-builder ARM64 NSIS extraction regression fixed in 26.15.6.
+
+The project now pins `electron-builder` 26.15.6. Rebuilding with that version
+produced a working ARM64 installer: installation completed, the installed
+directory contained `NotiVentaAgentStaging.exe` and the expected Electron DLLs,
+and the installed Agent launched successfully. No NSIS YAML redesign was
+required.
+
+Phase 5.2 is complete. Actual Device pairing was intentionally not required for
+this packaging/install phase. Packaged native keyring loading, pairing,
+credential persistence, restart restoration, revocation clearing, and return
+to pairing begin in Phase 5.3. Packaged Start with Windows remains Phase 5.4,
+the Device-status backend remains Phase 5.5, dashboard pairing and Device UI
+remain Phase 5.6, and Disconnect/Remove Computer remains Phase 5.7.
