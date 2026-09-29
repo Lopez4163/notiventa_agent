@@ -67,7 +67,10 @@ run(
 )
 
 function run(command, args, env) {
-  const result = spawnSync(command, args, { env, stdio: 'inherit' })
+  const result = spawnSync('cmd.exe', ['/d', '/s', '/c', command, ...args], {
+    env,
+    stdio: 'inherit'
+  })
   if (result.error) fail(result.error.message)
   if (result.status !== 0) process.exit(result.status ?? 1)
 }

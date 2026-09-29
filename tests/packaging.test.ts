@@ -48,4 +48,10 @@ describe('Windows staging packaging foundation', () => {
     expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+/)
     expect(mainSource).toContain('version: app.getVersion()')
   })
+
+  it('runs Windows command shims through cmd.exe without constructing a shell string', () => {
+    expect(packagingScript).toContain("spawnSync('cmd.exe', ['/d', '/s', '/c', command, ...args]")
+    expect(packagingScript).not.toContain('spawnSync(command, args')
+    expect(packagingScript).not.toContain('shell: true')
+  })
 })
