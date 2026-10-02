@@ -20,6 +20,20 @@ backend that matches the build. `NOTIVENTA_AGENT_ENV` accepts `development`,
 `staging`, or `production`. Only local development may use HTTP. End users do
 not choose an environment in the UI.
 
+For an unpackaged Windows VM development session that reaches a private or
+link-local Mac-host backend, explicitly opt in for that PowerShell session:
+
+```powershell
+$env:NOTIVENTA_AGENT_ENV = "development"
+$env:NOTIVENTA_AGENT_BACKEND_URL = "http://<MAC_VM_HOST>:8000"
+$env:NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK = "true"
+npm.cmd run dev
+```
+
+The installed staging/production `.exe` cannot use these variables: its HTTPS
+backend destination is embedded at package time. If PowerShell blocks
+`npm.ps1`, use `npm.cmd`; it changes no execution policy.
+
 Useful commands:
 
 ```bash

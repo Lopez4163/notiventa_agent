@@ -22,6 +22,37 @@ describe('Agent configuration', () => {
     })).toThrow(/HTTPS/)
   })
 
+  it('requires an explicit development-only opt-in for a private VM-reachable backend', () => {
+    const baseEnvironment = {
+      NOTIVENTA_AGENT_ENV: 'development',
+      NOTIVENTA_AGENT_BACKEND_URL: 'http://192.168.64.1:8000'
+    }
+    expect(() => loadAgentConfig({
+      env: baseEnvironment,
+      version: '1.0.0',
+      platform: 'windows'
+    })).toThrow(/HTTPS/)
+
+    const config = loadAgentConfig({
+      env: { ...baseEnvironment, NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK: 'true' },
+      version: '1.0.0',
+      platform: 'windows'
+    })
+    expect(config.backendUrl.href).toBe('http://192.168.64.1:8000/')
+  })
+
+  it('does not permit a public HTTP backend even with the development opt-in', () => {
+    expect(() => loadAgentConfig({
+      env: {
+        NOTIVENTA_AGENT_ENV: 'development',
+        NOTIVENTA_AGENT_BACKEND_URL: 'http://example.com:8000',
+        NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK: 'true'
+      },
+      version: '1.0.0',
+      platform: 'windows'
+    })).toThrow(/HTTPS/)
+  })
+
   it('uses immutable packaged staging configuration instead of runtime environment overrides', () => {
     const config = loadAgentConfig({
       env: {

@@ -85,6 +85,25 @@ npm run dev
 Do not put a Device credential or pairing code in environment variables. Do not
 point this validation at staging or production.
 
+### Mac-hosted local Dummy ML development
+
+For the DML 1.8 Windows VM -> Mac local-development path, use an unpackaged
+Agent working copy and the verified private or link-local Mac-host address.
+Do not use `127.0.0.1` from Windows: it means the VM itself.
+
+```powershell
+$env:NOTIVENTA_AGENT_ENV = "development"
+$env:NOTIVENTA_AGENT_BACKEND_URL = "http://<MAC_VM_HOST>:8000"
+$env:NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK = "true"
+npm.cmd run dev
+```
+
+The explicit opt-in permits HTTP only for unpackaged development to a private
+or link-local IPv4 host. An installed staging or production Agent `.exe` keeps
+its packaged HTTPS destination and cannot be redirected to the Mac with shell
+or `.env` variables. If PowerShell blocks `npm.ps1`, `npm.cmd run dev` is the
+equivalent command without changing execution policy.
+
 ## Pairing and live polling
 
 1. Launch the Agent in Windows.

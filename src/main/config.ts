@@ -14,6 +14,18 @@ export interface PackagedAgentBuildConfig {
 
 const environments = new Set<AgentEnvironment>(['development', 'staging', 'production'])
 
+function isPrivateOrLinkLocalIpv4(hostname: string): boolean {
+  const octets = hostname.split('.').map(Number)
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false
+  }
+  const [first, second] = octets
+  return first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254)
+}
+
 export function loadAgentConfig(options: {
   env?: NodeJS.ProcessEnv
   version: string
@@ -32,11 +44,17 @@ export function loadAgentConfig(options: {
     : env.NOTIVENTA_AGENT_BACKEND_URL
   if (!rawUrl) throw new Error('NOTIVENTA_AGENT_BACKEND_URL is required.')
   const backendUrl = new URL(rawUrl)
-  const isLocalDevelopment =
+  const isLoopbackDevelopment =
     environment === 'development' &&
     backendUrl.protocol === 'http:' &&
     ['localhost', '127.0.0.1', '::1'].includes(backendUrl.hostname)
-  if (backendUrl.protocol !== 'https:' && !isLocalDevelopment) {
+  const isOptedInVmDevelopment =
+    !options.packaged &&
+    environment === 'development' &&
+    backendUrl.protocol === 'http:' &&
+    env.NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK === 'true' &&
+    isPrivateOrLinkLocalIpv4(backendUrl.hostname)
+  if (backendUrl.protocol !== 'https:' && !isLoopbackDevelopment && !isOptedInVmDevelopment) {
     throw new Error('The configured backend URL must use HTTPS outside local development.')
   }
   if (backendUrl.username || backendUrl.password || backendUrl.search || backendUrl.hash) {
