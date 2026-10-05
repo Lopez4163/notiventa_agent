@@ -29,11 +29,20 @@ export interface BackendOperationalState {
   updateStatus: UpdateStatus
 }
 
+export interface ReceivedPrintJob {
+  jobId: string
+  attemptId: string
+  printType: 'SHIPPING_LABEL'
+  shipmentId: string
+  orderId: string | null
+}
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
   device: SafeDeviceMetadata | null
   backend: BackendOperationalState | null
+  receivedJob: ReceivedPrintJob | null
   error: string | null
 }
 

@@ -92,8 +92,12 @@ Implemented: pairing, secure credential lifecycle, authenticated polling,
 temporary-disconnection and revocation behavior, authoritative status display,
 tray background lifecycle, and Start with Windows preferences.
 
-Not implemented: printers, label files, physical printing, PrintAttempt,
-dispatch, retries, result events/outbox, production signing, or auto-update.
+Implemented: safe receipt of a backend-authorized PrintJob through the existing
+Device-authenticated poll contract. Receipt records the job and attempt IDs in
+Electron Main state only; it does not download a label or invoke a printer.
+
+Not implemented: printers, label files, physical printing, print-result
+events/outbox, retry/requeue, production signing, or auto-update.
 
 Phase 5.2 completed the Windows staging packaging foundation. Packaged keyring
 acceptance and packaged Start with Windows acceptance remain Phase 5.3 and 5.4.

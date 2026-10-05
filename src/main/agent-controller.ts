@@ -26,6 +26,7 @@ export class AgentController {
       systemName,
       device: settings.getDeviceMetadata(),
       backend: null,
+      receivedJob: null,
       error: null
     }
     this.scheduler = new PollScheduler({
@@ -35,7 +36,12 @@ export class AgentController {
         return this.api.poll(credential)
       },
       onSuccess: (result) => {
-        this.update({ lifecycle: 'connected', backend: result.backend, error: null })
+        this.update({
+          lifecycle: 'connected',
+          backend: result.backend,
+          receivedJob: result.job ?? this.state.receivedJob,
+          error: null
+        })
       },
       onTemporaryFailure: () => {
         this.update({ lifecycle: 'disconnected', error: 'NotiVenta is temporarily unreachable.' })
@@ -43,7 +49,7 @@ export class AgentController {
       onDefinitiveAuthenticationFailure: async () => {
         await this.credentials.clear()
         this.settings.clearDeviceMetadata()
-        this.update({ lifecycle: 'needs-pairing', device: null, backend: null, error: 'This computer was disconnected. Pair it again.' })
+        this.update({ lifecycle: 'needs-pairing', device: null, backend: null, receivedJob: null, error: 'This computer was disconnected. Pair it again.' })
       }
     })
   }
@@ -51,7 +57,7 @@ export class AgentController {
   async initialize(): Promise<void> {
     const credential = await this.credentials.get()
     if (!credential) {
-      this.update({ lifecycle: 'needs-pairing', device: null, backend: null, error: null })
+      this.update({ lifecycle: 'needs-pairing', device: null, backend: null, receivedJob: null, error: null })
       return
     }
     this.update({ lifecycle: 'connecting', error: null })

@@ -14,6 +14,7 @@ const pairResult = {
 }
 const pollResult = {
   backend: { isPaused: false, systemBlocked: false, mercadoLibreStatus: 'CONNECTED' as const, queueCount: 0, updateStatus: 'CURRENT' as const },
+  job: null,
   pollAfterSeconds: 5
 }
 
@@ -95,6 +96,27 @@ describe('AgentController lifecycle', () => {
     expect(created.credentials.credential).toBeNull()
     expect(created.credentials.clearCount).toBe(1)
     expect(created.controller.getState().lifecycle).toBe('needs-pairing')
+  })
+
+  it('records a received job in Agent state without invoking a printer', async () => {
+    vi.useFakeTimers()
+    const job = {
+      jobId: 'job-1', attemptId: 'attempt-1', printType: 'SHIPPING_LABEL' as const,
+      shipmentId: '200000001', orderId: '300000001'
+    }
+    const api = {
+      pair: vi.fn(),
+      poll: vi.fn().mockResolvedValue({ ...pollResult, job })
+    }
+    const created = createController(api)
+    created.credentials.credential = 'stored-secret'
+
+    await created.controller.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(created.controller.getState().receivedJob).toEqual(job)
+    expect(api.poll).toHaveBeenCalledOnce()
+    created.controller.shutdown()
   })
 })
 

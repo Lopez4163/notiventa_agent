@@ -38,6 +38,38 @@ describe('NotiVenta API client', () => {
     expect(JSON.parse(String(init?.body))).toEqual({ platform: 'windows', agentVersion: '1.0.3' })
   })
 
+  it('accepts a safely received print job without invoking any printer', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      device: { isPaused: false, systemBlocked: false },
+      mercadoLibre: { status: 'CONNECTED' }, queue: { count: 0 },
+      agent: { updateStatus: 'CURRENT' },
+      job: {
+        jobId: 'job-1', attemptId: 'attempt-1', printType: 'SHIPPING_LABEL',
+        shipmentId: '200000001', orderId: '300000001'
+      },
+      pollAfterSeconds: 5
+    }), { status: 200 }))
+
+    const result = await new NotiVentaApiClient(config, request).poll('device-secret')
+
+    expect(result.job).toEqual({
+      jobId: 'job-1', attemptId: 'attempt-1', printType: 'SHIPPING_LABEL',
+      shipmentId: '200000001', orderId: '300000001'
+    })
+  })
+
+  it('rejects a malformed received print job safely', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      device: { isPaused: false, systemBlocked: false },
+      mercadoLibre: { status: 'CONNECTED' }, queue: { count: 0 },
+      agent: { updateStatus: 'CURRENT' },
+      job: { jobId: 'job-1' }, pollAfterSeconds: 5
+    }), { status: 200 }))
+
+    await expect(new NotiVentaApiClient(config, request).poll('device-secret'))
+      .rejects.toMatchObject({ code: 'INVALID_PRINT_JOB_PAYLOAD', temporary: true })
+  })
+
   it('classifies definitive authentication failure separately', async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 }))
     await expect(new NotiVentaApiClient(config, request).poll('revoked')).rejects.toBeInstanceOf(DefinitiveDeviceAuthenticationError)

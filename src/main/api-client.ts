@@ -1,6 +1,7 @@
 import type {
   BackendOperationalState,
   MercadoLibreStatus,
+  ReceivedPrintJob,
   SafeDeviceMetadata,
   UpdateStatus
 } from '../shared/contracts'
@@ -33,12 +34,13 @@ interface PollResponse {
   mercadoLibre: { status: MercadoLibreStatus }
   queue: { count: number }
   agent: { updateStatus: UpdateStatus }
-  job: null
+  job: ReceivedPrintJob | null
   pollAfterSeconds: number
 }
 
 export interface PollResult {
   backend: BackendOperationalState
+  job: ReceivedPrintJob | null
   pollAfterSeconds: number
 }
 
@@ -90,6 +92,7 @@ export class NotiVentaApiClient {
         queueCount: body.queue.count,
         updateStatus: body.agent.updateStatus
       },
+      job: parseReceivedJob(body.job),
       pollAfterSeconds: body.pollAfterSeconds
     }
   }
@@ -126,6 +129,36 @@ export class NotiVentaApiClient {
       clearTimeout(timeout)
     }
   }
+}
+
+function parseReceivedJob(value: unknown): ReceivedPrintJob | null {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') throw invalidPrintJobPayload()
+  const job = value as Record<string, unknown>
+  if (
+    !isNonEmptyString(job.jobId) ||
+    !isNonEmptyString(job.attemptId) ||
+    job.printType !== 'SHIPPING_LABEL' ||
+    !isNonEmptyString(job.shipmentId) ||
+    (job.orderId !== null && !isNonEmptyString(job.orderId))
+  ) {
+    throw invalidPrintJobPayload()
+  }
+  return {
+    jobId: job.jobId,
+    attemptId: job.attemptId,
+    printType: job.printType,
+    shipmentId: job.shipmentId,
+    orderId: job.orderId
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function invalidPrintJobPayload(): BackendError {
+  return new BackendError('NotiVenta returned an invalid print job.', 200, 'INVALID_PRINT_JOB_PAYLOAD', true)
 }
 
 async function safeErrorBody(response: Response): Promise<{ code: string | null }> {
