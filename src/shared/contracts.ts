@@ -1,4 +1,4 @@
-export type AgentEnvironment = 'development' | 'staging' | 'production'
+export type AgentEnvironment = 'development' | 'local-validation' | 'staging' | 'production'
 export type AgentLifecycle =
   | 'needs-pairing'
   | 'connecting'

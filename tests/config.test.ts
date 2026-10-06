@@ -22,6 +22,40 @@ describe('Agent configuration', () => {
     })).toThrow(/HTTPS/)
   })
 
+  it('rejects local HTTP for packaged staging and production builds', () => {
+    for (const environment of ['staging', 'production'] as const) {
+      for (const backendUrl of ['http://localhost:8000', 'http://192.168.64.1:8000']) {
+        expect(() => loadAgentConfig({
+          packaged: { environment, backendUrl },
+          version: '1.0.0',
+          platform: 'windows'
+        })).toThrow(/HTTPS/)
+      }
+    }
+  })
+
+  it('accepts only the explicit packaged local-validation VM backend', () => {
+    const config = loadAgentConfig({
+      packaged: {
+        environment: 'local-validation',
+        backendUrl: 'http://192.168.64.1:8000'
+      },
+      version: '1.0.0',
+      platform: 'windows'
+    })
+
+    expect(config.environment).toBe('local-validation')
+    expect(config.backendUrl.href).toBe('http://192.168.64.1:8000/')
+    expect(() => loadAgentConfig({
+      packaged: {
+        environment: 'local-validation',
+        backendUrl: 'http://192.168.64.2:8000'
+      },
+      version: '1.0.0',
+      platform: 'windows'
+    })).toThrow(/HTTPS/)
+  })
+
   it('requires an explicit development-only opt-in for a private VM-reachable backend', () => {
     const baseEnvironment = {
       NOTIVENTA_AGENT_ENV: 'development',
@@ -51,6 +85,18 @@ describe('Agent configuration', () => {
       version: '1.0.0',
       platform: 'windows'
     })).toThrow(/HTTPS/)
+  })
+
+  it('keeps unpackaged development behavior unchanged', () => {
+    expect(() => loadAgentConfig({
+      env: {
+        NOTIVENTA_AGENT_ENV: 'local-validation',
+        NOTIVENTA_AGENT_BACKEND_URL: 'http://192.168.64.1:8000',
+        NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK: 'true'
+      },
+      version: '1.0.0',
+      platform: 'windows'
+    })).toThrow(/only available in an explicitly packaged/)
   })
 
   it('uses immutable packaged staging configuration instead of runtime environment overrides', () => {

@@ -30,6 +30,35 @@ The build refuses non-Windows hosts, mismatched Node/target architectures,
 missing URLs, local URLs, credentials in URLs, non-HTTPS staging origins, and a
 missing architecture-matched Windows `@napi-rs/keyring` binary.
 
+## ARM64 local-VM validation package
+
+Phase 5.4 needs an installed packaged Agent to validate Windows login startup.
+For the local ARM64 VM only, build the explicitly named local-validation
+package. It embeds `http://192.168.64.1:8000` and a `local-validation` package
+environment; it is not staging or production and must never be distributed as
+either.
+
+From a clean Agent checkout in the ARM64 Windows VM with ARM64 Node/npm:
+
+```powershell
+node -p "process.platform + ' ' + process.arch"
+npm ci
+npm test
+npm run typecheck
+npm run package:local-validation:win:arm64
+```
+
+The installer is written to:
+
+```text
+dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe
+```
+
+The local-validation command does not accept a backend URL environment
+variable. It is limited to the VM backend above and has a distinct application,
+shortcut, and installer identity. It does not relax the staging command, which
+continues to require a credential-free, non-local HTTPS origin.
+
 ## Find and install the artifact
 
 The installer is written to:

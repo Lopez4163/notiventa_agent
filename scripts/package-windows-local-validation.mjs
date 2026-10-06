@@ -1,16 +1,15 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { stagingBackendOrigin } from './staging-backend-url.mjs'
 
-const supportedArchitectures = new Set(['x64', 'arm64'])
 const architecture = process.argv[2]
+const localValidationBackendUrl = 'http://192.168.64.1:8000'
 
-if (!supportedArchitectures.has(architecture)) {
-  fail('Choose exactly one supported Windows architecture: x64 or arm64.')
+if (architecture !== 'arm64') {
+  fail('The local Windows VM validation package supports ARM64 only.')
 }
 if (process.platform !== 'win32') {
-  fail('Official Windows staging packages must be built from Windows.')
+  fail('Local Windows VM validation packages must be built from Windows.')
 }
 if (process.arch !== architecture) {
   fail(
@@ -31,18 +30,16 @@ if (!existsSync(keyringBinary)) {
   )
 }
 
-const backendOrigin = getStagingBackendOrigin()
-
 const buildEnvironment = {
   ...process.env,
-  NOTIVENTA_AGENT_PACKAGE_ENV: 'staging',
-  NOTIVENTA_AGENT_PACKAGE_BACKEND_URL: backendOrigin
+  NOTIVENTA_AGENT_PACKAGE_ENV: 'local-validation',
+  NOTIVENTA_AGENT_PACKAGE_BACKEND_URL: localValidationBackendUrl
 }
 
 run('npm.cmd', ['run', 'build'], buildEnvironment)
 run(
   resolve('node_modules', '.bin', 'electron-builder.cmd'),
-  ['--config', 'electron-builder.staging.yml', '--win', 'nsis', `--${architecture}`],
+  ['--config', 'electron-builder.local-validation.yml', '--win', 'nsis', '--arm64'],
   buildEnvironment
 )
 
@@ -53,14 +50,6 @@ function run(command, args, env) {
   })
   if (result.error) fail(result.error.message)
   if (result.status !== 0) process.exit(result.status ?? 1)
-}
-
-function getStagingBackendOrigin() {
-  try {
-    return stagingBackendOrigin(process.env.NOTIVENTA_AGENT_STAGING_BACKEND_URL)
-  } catch (error) {
-    fail(error instanceof Error ? error.message : 'The staging backend URL is invalid.')
-  }
 }
 
 function fail(message) {

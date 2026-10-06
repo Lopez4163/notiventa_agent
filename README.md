@@ -66,6 +66,27 @@ or select an environment.
 Detailed build and validation instructions are in
 [`docs/windows-phase5-packaging-validation.md`](docs/windows-phase5-packaging-validation.md).
 
+## Windows ARM64 local-VM validation packaging
+
+The Phase 5.4 Windows ARM64 VM has one separate, non-release package for the
+fixed local backend `http://192.168.64.1:8000`. It is neither a staging nor a
+production artifact, and its local-validation identity and HTTP destination are
+embedded at package time. It does not read backend configuration from the
+runtime environment.
+
+Run this only from the ARM64 Windows VM with ARM64 Node/npm:
+
+```powershell
+npm ci
+npm test
+npm run typecheck
+npm run package:local-validation:win:arm64
+```
+
+The installer is `dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe`.
+The normal `package:staging:*` commands still require a credential-free,
+non-local HTTPS staging origin.
+
 Windows 11 UTM validation instructions and the manual results checklist are in
 [`docs/windows-phase4-validation.md`](docs/windows-phase4-validation.md) and
 [`docs/windows-phase4-validation-checklist.md`](docs/windows-phase4-validation-checklist.md).

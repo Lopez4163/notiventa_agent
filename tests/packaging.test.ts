@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { stagingBackendOrigin } from '../scripts/staging-backend-url.mjs'
 
 const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
   version: string
@@ -9,6 +10,11 @@ const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as
 }
 const builderConfig = readFileSync(resolve('electron-builder.staging.yml'), 'utf8')
 const packagingScript = readFileSync(resolve('scripts/package-windows-staging.mjs'), 'utf8')
+const localValidationBuilderConfig = readFileSync(resolve('electron-builder.local-validation.yml'), 'utf8')
+const localValidationPackagingScript = readFileSync(
+  resolve('scripts/package-windows-local-validation.mjs'),
+  'utf8'
+)
 const mainSource = readFileSync(resolve('src/main/index.ts'), 'utf8')
 
 describe('Windows staging packaging foundation', () => {
@@ -38,7 +44,9 @@ describe('Windows staging packaging foundation', () => {
   it('requires an HTTPS staging URL and compiles staging identity without secrets', () => {
     expect(packagingScript).toContain('NOTIVENTA_AGENT_STAGING_BACKEND_URL')
     expect(packagingScript).toContain("NOTIVENTA_AGENT_PACKAGE_ENV: 'staging'")
-    expect(packagingScript).toContain("backendUrl.protocol !== 'https:'")
+    expect(() => stagingBackendOrigin('http://192.168.64.1:8000')).toThrow(/credential-free, non-local HTTPS origin/)
+    expect(() => stagingBackendOrigin('http://localhost:8000')).toThrow(/credential-free, non-local HTTPS origin/)
+    expect(stagingBackendOrigin('https://staging.example.com/base-path')).toBe('https://staging.example.com')
     expect(packagingScript).toContain('process.arch !== architecture')
     expect(packagingScript).toContain('keyring-win32-${architecture}-msvc')
     expect(packagingScript).toContain('existsSync(keyringBinary)')
@@ -53,6 +61,21 @@ describe('Windows staging packaging foundation', () => {
     expect(packagingScript).toContain("spawnSync('cmd.exe', ['/d', '/s', '/c', command, ...args]")
     expect(packagingScript).not.toContain('spawnSync(command, args')
     expect(packagingScript).not.toContain('shell: true')
+  })
+
+  it('keeps local VM validation separate from staging and binds it to the approved HTTP backend', () => {
+    expect(packageJson.scripts['package:local-validation:win:arm64']).toContain(
+      'package-windows-local-validation.mjs arm64'
+    )
+    expect(localValidationPackagingScript).toContain("'http://192.168.64.1:8000'")
+    expect(localValidationPackagingScript).toContain("NOTIVENTA_AGENT_PACKAGE_ENV: 'local-validation'")
+    expect(localValidationPackagingScript).toContain("['--config', 'electron-builder.local-validation.yml'")
+    expect(localValidationBuilderConfig).toContain('appId: com.notiventa.agent.localvalidation')
+    expect(localValidationBuilderConfig).toContain('productName: NotiVenta Agent Local Validation')
+    expect(localValidationBuilderConfig).toContain('output: dist/local-validation')
+    expect(localValidationBuilderConfig).toContain('NotiVenta-Local-Validation-Setup-${version}-${arch}.${ext}')
+    expect(localValidationBuilderConfig).toContain('- arm64')
+    expect(localValidationBuilderConfig).not.toContain('- x64')
   })
 
   it('reports a packaged keyring load failure without continuing to pairing', () => {
