@@ -1,4 +1,4 @@
-# Phase 5.2 Windows Packaging Validation
+# Phase 5.2 Windows Packaging and Phase 5.3 Keyring Validation
 
 Run the authoritative packaging validation inside Windows. Do not treat a
 macOS cross-build as an official artifact.
@@ -97,3 +97,99 @@ credential persistence, restart restoration, revocation clearing, and return
 to pairing begin in Phase 5.3. Packaged Start with Windows remains Phase 5.4,
 the Device-status backend remains Phase 5.5, dashboard pairing and Device UI
 remain Phase 5.6, and Disconnect/Remove Computer remains Phase 5.7.
+
+## Phase 5.3 packaged keyring acceptance
+
+Run this procedure using the installed staging Agent, never Electron or source
+bundles. Repeat it separately for every packaged architecture being accepted.
+x64 is required for V1 production readiness; ARM64 is a supported secondary
+architecture. Do not print, copy, or reveal a Device credential at any point.
+
+### Preconditions
+
+* Build the matching architecture from a clean Windows checkout with `npm ci`
+  and the command above.
+* Use a reachable staging backend and a staging test User that can pair and
+  revoke its own Device through the existing supported backend mechanism.
+* Begin without an active Device for that User and without a stale NotiVenta
+  Device credential for this test installation.
+
+### 1. Install and native-module load
+
+1. Install `NotiVenta-Staging-Setup-<version>-<arch>.exe`.
+2. Confirm the installed application's unpacked resources contain the matching
+   `@napi-rs/keyring` binary:
+
+   ```powershell
+   $arch = 'x64' # or 'arm64'
+   $installRoot = Join-Path $env:LOCALAPPDATA 'Programs\NotiVenta Agent Staging'
+   Get-ChildItem "$installRoot\resources\app.asar.unpacked\node_modules\@napi-rs" -Recurse `
+     -Filter "keyring.win32-$arch-msvc.node"
+   ```
+
+3. Launch **NotiVenta Agent Staging** from its installed shortcut.
+4. Confirm it reaches pairing without a native-module error. The Main-process
+   log records only `Secure Windows credential storage initialized.`; it never
+   includes a credential.
+
+Expected: the architecture-matched binary is present and the installed Agent
+starts normally.
+
+### 2. Secure write after pairing
+
+1. Generate a staging pairing code through the supported backend flow.
+2. Pair from the installed Agent and wait for its connected state.
+3. In Windows Credential Manager, verify that the NotiVenta entry exists. Check
+   existence only; do not reveal, copy, or print its stored value.
+
+Expected: the Main-process log records only `Secure Device credential stored.`
+and the Agent polls as the paired Device.
+
+### 3. Complete exit and secure restore
+
+1. Choose **Quit** from the Agent tray menu, not merely the window close button.
+2. Confirm the Agent process is no longer running.
+3. Relaunch the installed Agent from its Start-menu or desktop shortcut.
+4. Confirm it reconnects as the same Device without a pairing code.
+
+Expected: the Main-process log records only `Secure Device credential restored.`
+and the Agent authenticates and polls without another pairing flow.
+
+### 4. Revocation and secure deletion
+
+1. Revoke that Device through the existing supported staging backend mechanism.
+2. Leave the installed Agent running until its next authenticated request is
+   rejected.
+3. Confirm it stops authenticated work and returns to pairing.
+4. Verify that the NotiVenta entry is absent in Windows Credential Manager
+   without opening or revealing any credential value.
+
+Expected: only a definitive Device-authentication rejection causes the Main
+process to record that the credential was deleted. Timeout, connection loss,
+and 5xx responses retain the credential and show the temporary disconnected
+state instead.
+
+### 5. Deletion persists across restart
+
+1. Quit the Agent from its tray menu and confirm the process exits.
+2. Relaunch the installed Agent.
+
+Expected: the Agent remains in pairing and the revoked credential does not
+return.
+
+### Record
+
+Record a result for every tested architecture:
+
+```text
+Architecture: x64 | ARM64
+Installer / matching native binary: PASS | FAIL
+Installed native-module load: PASS | FAIL
+Secure write after pairing: PASS | FAIL
+Complete-exit restore and same-Device authentication: PASS | FAIL
+Revocation deletes credential and returns to pairing: PASS | FAIL
+Deleted credential remains absent after restart: PASS | FAIL
+```
+
+This is Phase 5.3 acceptance only. Packaged Start with Windows is Phase 5.4;
+dashboard Device status and removal UX are later Phase 5 work.

@@ -3,7 +3,10 @@ import { AgentController } from '../src/main/agent-controller'
 import { BackendError, DefinitiveDeviceAuthenticationError, type NotiVentaApiClient } from '../src/main/api-client'
 import { MemoryCredentialStore, MemorySettingsStore } from './test-doubles'
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 const pairResult = {
   device: {
@@ -222,6 +225,24 @@ describe('AgentController lifecycle', () => {
     expect(created.credentials.credential).toBeNull()
     expect(created.credentials.clearCount).toBe(1)
     expect(created.controller.getState().lifecycle).toBe('needs-pairing')
+  })
+
+  it('logs credential lifecycle milestones without exposing the credential', async () => {
+    vi.useFakeTimers()
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const api = { pair: vi.fn(), poll: vi.fn().mockRejectedValue(new DefinitiveDeviceAuthenticationError()) }
+    const created = createController(api)
+    created.credentials.credential = 'revoked-secret'
+
+    await created.controller.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+
+    const output = [...info.mock.calls, ...warn.mock.calls].flat().join(' ')
+    expect(output).toContain('Secure Device credential restored.')
+    expect(output).toContain('Backend rejected the Device credential')
+    expect(output).toContain('Secure Device credential deleted after backend rejection.')
+    expect(output).not.toContain('revoked-secret')
   })
 
   it('records a received job in Agent state without invoking a printer', async () => {

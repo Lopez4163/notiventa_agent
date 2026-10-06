@@ -54,4 +54,11 @@ describe('Windows staging packaging foundation', () => {
     expect(packagingScript).not.toContain('spawnSync(command, args')
     expect(packagingScript).not.toContain('shell: true')
   })
+
+  it('reports a packaged keyring load failure without continuing to pairing', () => {
+    expect(mainSource).toContain("await import('./credential-store')")
+    expect(mainSource).toContain('Secure Windows credential storage failed to initialize.')
+    expect(mainSource).toContain('could not initialize secure Windows credential storage')
+    expect(mainSource).toContain('app.quit()')
+  })
 })

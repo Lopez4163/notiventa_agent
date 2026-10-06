@@ -78,6 +78,7 @@ export class AgentController {
 
     const credential = await this.credentials.get()
     if (!credential) {
+      console.info('[credentials] No secure Device credential is available; pairing is required.')
       this.update({
         lifecycle: 'needs-pairing',
         device: null,
@@ -90,6 +91,7 @@ export class AgentController {
       return
     }
 
+    console.info('[credentials] Secure Device credential restored.')
     if (pendingReceipt.kind === 'valid') {
       this.pendingReceiptAcknowledgement = pendingReceipt.receipt.job
       this.update({
@@ -178,6 +180,7 @@ export class AgentController {
     this.pendingCredential = null
     this.pendingDevice = null
     this.settings.setDeviceMetadata(device)
+    console.info('[credentials] Secure Device credential stored.')
     this.update({ device, lifecycle: 'connecting', error: null })
     this.resumeAfterCredentialPersistence()
   }
@@ -340,8 +343,10 @@ export class AgentController {
   }
 
   private async handleDefinitiveAuthenticationFailure(): Promise<void> {
+    console.warn('[credentials] Backend rejected the Device credential; deleting it from secure storage.')
     await this.credentials.clear()
     this.settings.clearDeviceMetadata()
+    console.info('[credentials] Secure Device credential deleted after backend rejection.')
     this.update({
       lifecycle: 'needs-pairing',
       device: null,
