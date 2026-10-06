@@ -44,7 +44,7 @@ describe('NotiVenta API client', () => {
       mercadoLibre: { status: 'CONNECTED' }, queue: { count: 0 },
       agent: { updateStatus: 'CURRENT' },
       job: {
-        jobId: 'job-1', attemptId: 'attempt-1', printType: 'SHIPPING_LABEL',
+        jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222', printType: 'SHIPPING_LABEL',
         shipmentId: '200000001', orderId: '300000001'
       },
       pollAfterSeconds: 5
@@ -53,9 +53,49 @@ describe('NotiVenta API client', () => {
     const result = await new NotiVentaApiClient(config, request).poll('device-secret')
 
     expect(result.job).toEqual({
-      jobId: 'job-1', attemptId: 'attempt-1', printType: 'SHIPPING_LABEL',
+      jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222', printType: 'SHIPPING_LABEL',
       shipmentId: '200000001', orderId: '300000001'
     })
+  })
+
+  it('acknowledges a validated receipt with the Device credential', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      attemptId: '22222222-2222-4222-8222-222222222222', status: 'RECEIVED', receivedAt: '2026-10-05T00:00:00Z'
+    }), { status: 200 }))
+
+    await new NotiVentaApiClient(config, request).acknowledgeReceipt('device-secret', '22222222-2222-4222-8222-222222222222')
+
+    const [url, init] = request.mock.calls[0]
+    expect(String(url)).toBe('https://dev.example.test/api/v1/agent/attempts/22222222-2222-4222-8222-222222222222/received')
+    expect(init?.method).toBe('POST')
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer device-secret')
+  })
+
+  it('recovers a current authorized assignment with the Device credential', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      assignment: {
+        jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222', printType: 'SHIPPING_LABEL',
+        shipmentId: '200000001', orderId: null
+      }
+    }), { status: 200 }))
+
+    const assignment = await new NotiVentaApiClient(config, request).recoverCurrentAssignment('device-secret')
+
+    expect(assignment).toEqual({
+      jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222', printType: 'SHIPPING_LABEL',
+      shipmentId: '200000001', orderId: null
+    })
+    const [url, init] = request.mock.calls[0]
+    expect(String(url)).toBe('https://dev.example.test/api/v1/agent/assignment')
+    expect(init?.method).toBe('GET')
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer device-secret')
+  })
+
+  it('rejects a malformed recovery response without beginning normal polling', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ assignment: { jobId: 'not-a-uuid' } }), { status: 200 }))
+
+    await expect(new NotiVentaApiClient(config, request).recoverCurrentAssignment('device-secret'))
+      .rejects.toMatchObject({ code: 'INVALID_ASSIGNMENT_RECOVERY_RESPONSE', temporary: false })
   })
 
   it('rejects a malformed received print job safely', async () => {

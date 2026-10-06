@@ -18,10 +18,10 @@ export class PollScheduler {
 
   constructor(private readonly callbacks: PollSchedulerCallbacks) {}
 
-  start(): void {
+  start(initialDelayMs = 0): void {
     if (this.running) return
     this.running = true
-    this.schedule(0)
+    this.schedule(initialDelayMs)
   }
 
   stop(): void {

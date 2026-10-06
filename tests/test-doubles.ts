@@ -1,5 +1,9 @@
 import type { CredentialStore } from '../src/main/credential-store'
-import type { SettingsStore } from '../src/main/settings-store'
+import {
+  type PendingReceipt,
+  type SettingsStore
+} from '../src/main/settings-store'
+import { parsePendingReceipt, type PendingReceiptLoadResult } from '../src/main/pending-receipt'
 import type { SafeDeviceMetadata } from '../src/shared/contracts'
 
 export class MemoryCredentialStore implements CredentialStore {
@@ -24,10 +28,32 @@ export class MemorySettingsStore implements SettingsStore {
   startWithWindows = true
   metadata: SafeDeviceMetadata | null = null
   credential = undefined
+  pendingReceipt: unknown = undefined
+  pendingReceiptWrites: PendingReceipt[] = []
+  pendingReceiptClearCount = 0
+  pendingReceiptWriteFailuresRemaining = 0
+  pendingReceiptClearFailuresRemaining = 0
 
   getStartWithWindows(): boolean { return this.startWithWindows }
   setStartWithWindows(enabled: boolean): void { this.startWithWindows = enabled }
   getDeviceMetadata(): SafeDeviceMetadata | null { return this.metadata }
   setDeviceMetadata(metadata: SafeDeviceMetadata): void { this.metadata = metadata }
   clearDeviceMetadata(): void { this.metadata = null }
+  getPendingReceipt(): PendingReceiptLoadResult { return parsePendingReceipt(this.pendingReceipt) }
+  setPendingReceipt(receipt: PendingReceipt): void {
+    this.pendingReceiptWrites.push(receipt)
+    if (this.pendingReceiptWriteFailuresRemaining > 0) {
+      this.pendingReceiptWriteFailuresRemaining -= 1
+      throw new Error('local settings store unavailable')
+    }
+    this.pendingReceipt = structuredClone(receipt)
+  }
+  clearPendingReceipt(): void {
+    if (this.pendingReceiptClearFailuresRemaining > 0) {
+      this.pendingReceiptClearFailuresRemaining -= 1
+      throw new Error('local settings store unavailable')
+    }
+    this.pendingReceipt = undefined
+    this.pendingReceiptClearCount += 1
+  }
 }
