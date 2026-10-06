@@ -106,8 +106,13 @@ invoke a printer.
 Not implemented: printers, label files, physical printing, print-result
 events/outbox, retry/requeue, production signing, or auto-update.
 
-Phase 5.2 completed the Windows staging packaging foundation. Packaged keyring
-acceptance and packaged Start with Windows acceptance remain Phase 5.3 and 5.4.
+Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
+an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
+credential lifecycle: secure write, complete-exit restore, revocation deletion,
+return to pairing, and a restart that remained in pairing. The exact installer
+filename was not recorded. This does not claim HTTPS staging/release acceptance
+or x64 primary-architecture readiness. Packaged Start with Windows acceptance
+remains Phase 5.4.
 The Windows ARM64 reference installer requires the pinned `electron-builder`
 26.15.6 release, which fixes the ARM64 NSIS extraction regression encountered
 with 26.15.3.

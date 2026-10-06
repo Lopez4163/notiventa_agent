@@ -193,3 +193,22 @@ Deleted credential remains absent after restart: PASS | FAIL
 
 This is Phase 5.3 acceptance only. Packaged Start with Windows is Phase 5.4;
 dashboard Device status and removal UX are later Phase 5 work.
+
+### Recorded ARM64 local VM result — 2026-10-06
+
+An installed packaged Agent on the Windows ARM64 VM completed the full Device
+credential lifecycle against the local HTTP VM backend:
+
+```text
+Architecture: ARM64
+Exact installer filename: not recorded
+Installed native-module load: PASS
+Secure write after pairing: PASS
+Complete-exit restore and same-Device authentication: PASS
+Revocation deletes credential and returns to pairing: PASS
+Deleted credential remains absent after restart: PASS
+```
+
+This result is intentionally limited to local HTTP VM acceptance. It does not
+claim that an HTTPS-bound staging/release artifact or the x64 primary production
+architecture has completed the same acceptance.
