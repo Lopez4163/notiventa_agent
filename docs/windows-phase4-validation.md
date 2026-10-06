@@ -120,6 +120,15 @@ equivalent command without changing execution policy.
 
 Do not automate this flow with invented codes or credentials.
 
+## DML 1.9 receipt-only delivery follow-up
+
+The Windows VM later validated DML 1.9's real receipt-only delivery path:
+recover an existing `AUTHORIZED` assignment before polling when necessary,
+persist safe receipt metadata, acknowledge it as `RECEIVED`, receive the next
+queued job, and acknowledge it without duplicate dispatch. This is not a Phase
+4 claim of printer support: no label download, spooler, printer API, or physical
+output was used. See the backend local-testing guide for the full replay.
+
 ## Credential persistence and restart
 
 After successful DEV pairing:
