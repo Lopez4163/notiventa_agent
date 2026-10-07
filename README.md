@@ -83,6 +83,22 @@ uses the separate, fixed `http://192.168.64.1:8000` local-validation identity.
 The helper refuses a checkout with local changes and does not reset, stash, or
 overwrite work.
 
+### Interactive Windows source launcher
+
+For repeated unpackaged Windows sessions, use the source launcher from a clean
+checkout:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-validation\run-agent-source.ps1
+```
+
+Choose **Local Mac DEV** to check out `dev` and launch Electron against the
+fixed local backend `http://192.168.64.1:8000`. Choose **Staging source
+session** to check out `staging` and launch unpackaged Electron against
+`https://notiventabe-staging.up.railway.app`. The staging source session is not
+a packaged-installer validation. The helper installs dependencies only when
+they are missing or changed and repairs a missing Electron development binary.
+
 ## Windows ARM64 local-VM validation packaging
 
 The Phase 5.4 Windows ARM64 VM has one separate, non-release package for the
