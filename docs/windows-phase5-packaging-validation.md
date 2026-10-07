@@ -30,6 +30,23 @@ The build refuses non-Windows hosts, mismatched Node/target architectures,
 missing URLs, local URLs, credentials in URLs, non-HTTPS staging origins, and a
 missing architecture-matched Windows `@napi-rs/keyring` binary.
 
+### Interactive package helper
+
+For the supported staging and local-VM validation choices, run the checked-in
+PowerShell helper from a clean checkout:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-validation\package-agent.ps1
+```
+
+It asks for **Staging** or **Local VM validation**, checks out and fast-forwards
+the matching branch, runs `npm ci` and Agent tests, invokes the existing
+architecture-matched package command, and asks before starting the installer.
+Staging embeds `https://notiventabe-staging.up.railway.app`; local validation
+is ARM64-only and uses its existing fixed local backend. The helper stops when
+the checkout has local changes rather than resetting, stashing, or overwriting
+them.
+
 ## ARM64 local-VM validation package
 
 Phase 5.4 needs an installed packaged Agent to validate Windows login startup.
