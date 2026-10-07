@@ -12,7 +12,19 @@ export interface PackagedAgentBuildConfig {
   backendUrl: string | null
 }
 
-const environments = new Set<AgentEnvironment>(['development', 'staging', 'production'])
+const environments = new Set<AgentEnvironment>(['development', 'local-validation', 'staging', 'production'])
+
+function isPrivateOrLinkLocalIpv4(hostname: string): boolean {
+  const octets = hostname.split('.').map(Number)
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false
+  }
+  const [first, second] = octets
+  return first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    (first === 169 && second === 254)
+}
 
 export function loadAgentConfig(options: {
   env?: NodeJS.ProcessEnv
@@ -25,18 +37,36 @@ export function loadAgentConfig(options: {
     ? options.packaged.environment
     : env.NOTIVENTA_AGENT_ENV ?? 'development'
   if (!environments.has(environment as AgentEnvironment)) {
-    throw new Error('NOTIVENTA_AGENT_ENV must be development, staging, or production.')
+    throw new Error('NOTIVENTA_AGENT_ENV must be development, local-validation, staging, or production.')
+  }
+  if (environment === 'local-validation' && !options.packaged) {
+    throw new Error('local-validation is only available in an explicitly packaged local-validation build.')
   }
   const rawUrl = options.packaged
     ? options.packaged.backendUrl
     : env.NOTIVENTA_AGENT_BACKEND_URL
   if (!rawUrl) throw new Error('NOTIVENTA_AGENT_BACKEND_URL is required.')
   const backendUrl = new URL(rawUrl)
-  const isLocalDevelopment =
+  const isLoopbackDevelopment =
     environment === 'development' &&
     backendUrl.protocol === 'http:' &&
     ['localhost', '127.0.0.1', '::1'].includes(backendUrl.hostname)
-  if (backendUrl.protocol !== 'https:' && !isLocalDevelopment) {
+  const isOptedInVmDevelopment =
+    !options.packaged &&
+    environment === 'development' &&
+    backendUrl.protocol === 'http:' &&
+    env.NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK === 'true' &&
+    isPrivateOrLinkLocalIpv4(backendUrl.hostname)
+  const isPackagedLocalValidation =
+    options.packaged &&
+    environment === 'local-validation' &&
+    backendUrl.origin === 'http://192.168.64.1:8000'
+  if (
+    backendUrl.protocol !== 'https:' &&
+    !isLoopbackDevelopment &&
+    !isOptedInVmDevelopment &&
+    !isPackagedLocalValidation
+  ) {
     throw new Error('The configured backend URL must use HTTPS outside local development.')
   }
   if (backendUrl.username || backendUrl.password || backendUrl.search || backendUrl.hash) {

@@ -20,6 +20,20 @@ backend that matches the build. `NOTIVENTA_AGENT_ENV` accepts `development`,
 `staging`, or `production`. Only local development may use HTTP. End users do
 not choose an environment in the UI.
 
+For an unpackaged Windows VM development session that reaches a private or
+link-local Mac-host backend, explicitly opt in for that PowerShell session:
+
+```powershell
+$env:NOTIVENTA_AGENT_ENV = "development"
+$env:NOTIVENTA_AGENT_BACKEND_URL = "http://<MAC_VM_HOST>:8000"
+$env:NOTIVENTA_AGENT_ALLOW_INSECURE_LOCAL_NETWORK = "true"
+npm.cmd run dev
+```
+
+The installed staging/production `.exe` cannot use these variables: its HTTPS
+backend destination is embedded at package time. If PowerShell blocks
+`npm.ps1`, use `npm.cmd`; it changes no execution policy.
+
 Useful commands:
 
 ```bash
@@ -52,6 +66,27 @@ or select an environment.
 Detailed build and validation instructions are in
 [`docs/windows-phase5-packaging-validation.md`](docs/windows-phase5-packaging-validation.md).
 
+## Windows ARM64 local-VM validation packaging
+
+The Phase 5.4 Windows ARM64 VM has one separate, non-release package for the
+fixed local backend `http://192.168.64.1:8000`. It is neither a staging nor a
+production artifact, and its local-validation identity and HTTP destination are
+embedded at package time. It does not read backend configuration from the
+runtime environment.
+
+Run this only from the ARM64 Windows VM with ARM64 Node/npm:
+
+```powershell
+npm ci
+npm test
+npm run typecheck
+npm run package:local-validation:win:arm64
+```
+
+The installer is `dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe`.
+The normal `package:staging:*` commands still require a credential-free,
+non-local HTTPS staging origin.
+
 Windows 11 UTM validation instructions and the manual results checklist are in
 [`docs/windows-phase4-validation.md`](docs/windows-phase4-validation.md) and
 [`docs/windows-phase4-validation-checklist.md`](docs/windows-phase4-validation-checklist.md).
@@ -78,11 +113,27 @@ Implemented: pairing, secure credential lifecycle, authenticated polling,
 temporary-disconnection and revocation behavior, authoritative status display,
 tray background lifecycle, and Start with Windows preferences.
 
-Not implemented: printers, label files, physical printing, PrintAttempt,
-dispatch, retries, result events/outbox, production signing, or auto-update.
+Implemented: safe receipt of a backend-authorized PrintJob through the existing
+Device-authenticated poll contract. Before acknowledgement, Electron Main
+persists only non-secret receipt metadata (`jobId`, `attemptId`, print type,
+shipment ID, and optional order ID) in its local settings boundary. On restart,
+it acknowledges that pending receipt before polling. If no local receipt exists,
+it asks the Device-authenticated `GET /api/v1/agent/assignment` endpoint for
+its own existing `AUTHORIZED` assignment, persists that same assignment, then
+uses the normal idempotent receipt acknowledgement. Recovery never creates a
+second PrintAttempt or redispatches a job. Receipt does not download a label or
+invoke a printer.
 
-Phase 5.2 completed the Windows staging packaging foundation. Packaged keyring
-acceptance and packaged Start with Windows acceptance remain Phase 5.3 and 5.4.
+Not implemented: printers, label files, physical printing, print-result
+events/outbox, retry/requeue, production signing, or auto-update.
+
+Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
+an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
+credential lifecycle: secure write, complete-exit restore, revocation deletion,
+return to pairing, and a restart that remained in pairing. The exact installer
+filename was not recorded. This does not claim HTTPS staging/release acceptance
+or x64 primary-architecture readiness. Packaged Start with Windows acceptance
+remains Phase 5.4.
 The Windows ARM64 reference installer requires the pinned `electron-builder`
 26.15.6 release, which fixes the ARM64 NSIS extraction regression encountered
 with 26.15.3.

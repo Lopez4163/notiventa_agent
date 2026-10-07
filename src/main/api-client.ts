@@ -1,6 +1,7 @@
 import type {
   BackendOperationalState,
   MercadoLibreStatus,
+  ReceivedPrintJob,
   SafeDeviceMetadata,
   UpdateStatus
 } from '../shared/contracts'
@@ -33,13 +34,20 @@ interface PollResponse {
   mercadoLibre: { status: MercadoLibreStatus }
   queue: { count: number }
   agent: { updateStatus: UpdateStatus }
-  job: null
+  job: ReceivedPrintJob | null
   pollAfterSeconds: number
 }
 
 export interface PollResult {
   backend: BackendOperationalState
+  job: ReceivedPrintJob | null
   pollAfterSeconds: number
+}
+
+interface ReceiptAcknowledgementResponse {
+  attemptId: string
+  status: 'RECEIVED'
+  receivedAt: string
 }
 
 export class NotiVentaApiClient {
@@ -90,7 +98,48 @@ export class NotiVentaApiClient {
         queueCount: body.queue.count,
         updateStatus: body.agent.updateStatus
       },
+      job: parseReceivedJob(body.job),
       pollAfterSeconds: body.pollAfterSeconds
+    }
+  }
+
+  async acknowledgeReceipt(credential: string, attemptId: string): Promise<void> {
+    const response = await this.send(
+      `/api/v1/agent/attempts/${encodeURIComponent(attemptId)}/received`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${credential}` }
+      },
+      true
+    )
+    const body = (await response.json()) as ReceiptAcknowledgementResponse
+    if (body.attemptId !== attemptId || body.status !== 'RECEIVED' || !isNonEmptyString(body.receivedAt)) {
+      throw new BackendError('NotiVenta returned an invalid receipt acknowledgement.', 200, 'INVALID_RECEIPT_ACKNOWLEDGEMENT', true)
+    }
+  }
+
+  async recoverCurrentAssignment(credential: string): Promise<ReceivedPrintJob | null> {
+    const response = await this.send(
+      '/api/v1/agent/assignment',
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${credential}` }
+      },
+      true
+    )
+    const body = (await response.json()) as unknown
+    try {
+      if (!body || typeof body !== 'object' || !('assignment' in body)) {
+        throw new Error('Missing assignment')
+      }
+      return parseReceivedJob(body.assignment)
+    } catch {
+      throw new BackendError(
+        'NotiVenta returned an invalid current assignment.',
+        200,
+        'INVALID_ASSIGNMENT_RECOVERY_RESPONSE',
+        false
+      )
     }
   }
 
@@ -126,6 +175,41 @@ export class NotiVentaApiClient {
       clearTimeout(timeout)
     }
   }
+}
+
+function parseReceivedJob(value: unknown): ReceivedPrintJob | null {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') throw invalidPrintJobPayload()
+  const job = value as Record<string, unknown>
+  if (
+    !isUuid(job.jobId) ||
+    !isUuid(job.attemptId) ||
+    job.printType !== 'SHIPPING_LABEL' ||
+    !isNonEmptyString(job.shipmentId) ||
+    (job.orderId !== null && !isNonEmptyString(job.orderId))
+  ) {
+    throw invalidPrintJobPayload()
+  }
+  return {
+    jobId: job.jobId,
+    attemptId: job.attemptId,
+    printType: job.printType,
+    shipmentId: job.shipmentId,
+    orderId: job.orderId
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
+function invalidPrintJobPayload(): BackendError {
+  return new BackendError('NotiVenta returned an invalid print job.', 200, 'INVALID_PRINT_JOB_PAYLOAD', true)
 }
 
 async function safeErrorBody(response: Response): Promise<{ code: string | null }> {
