@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
+    "package:local-validation:win:arm64": "node scripts/package-windows-local-validation.mjs arm64",
     "package:staging:win:x64": "node scripts/package-windows-staging.mjs x64",
     "package:staging:win:arm64": "node scripts/package-windows-staging.mjs arm64",
     "preview": "electron-vite preview",

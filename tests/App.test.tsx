@@ -9,7 +9,7 @@ import type { AgentRendererApi, AgentState } from '../src/shared/contracts'
 afterEach(cleanup)
 
 const unpaired: AgentState = {
-  lifecycle: 'needs-pairing', systemName: 'DESKTOP-ABC123', device: null, backend: null, error: null
+  lifecycle: 'needs-pairing', systemName: 'DESKTOP-ABC123', device: null, backend: null, receivedJob: null, error: null
 }
 
 describe('Agent UI', () => {

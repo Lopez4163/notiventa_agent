@@ -7,15 +7,15 @@ afterEach(() => vi.useRealTimers())
 describe('PollScheduler', () => {
   it('polls immediately, never overlaps, and honors pollAfterSeconds', async () => {
     vi.useFakeTimers()
-    let resolvePoll!: (value: { backend: never; pollAfterSeconds: number }) => void
-    const poll = vi.fn(() => new Promise<{ backend: never; pollAfterSeconds: number }>((resolve) => { resolvePoll = resolve }))
+    let resolvePoll!: (value: { backend: never; job: null; pollAfterSeconds: number }) => void
+    const poll = vi.fn(() => new Promise<{ backend: never; job: null; pollAfterSeconds: number }>((resolve) => { resolvePoll = resolve }))
     const scheduler = new PollScheduler({ poll, onSuccess: vi.fn(), onTemporaryFailure: vi.fn(), onDefinitiveAuthenticationFailure: vi.fn() })
     scheduler.start()
     await vi.advanceTimersByTimeAsync(0)
     expect(poll).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(20_000)
     expect(poll).toHaveBeenCalledTimes(1)
-    resolvePoll({ backend: undefined as never, pollAfterSeconds: 7 })
+    resolvePoll({ backend: undefined as never, job: null, pollAfterSeconds: 7 })
     await Promise.resolve()
     await vi.advanceTimersByTimeAsync(6_999)
     expect(poll).toHaveBeenCalledTimes(1)
@@ -33,7 +33,7 @@ describe('PollScheduler', () => {
       .mockRejectedValueOnce(temporary)
       .mockRejectedValueOnce(temporary)
       .mockRejectedValueOnce(temporary)
-      .mockResolvedValueOnce({ backend: {}, pollAfterSeconds: 5 })
+      .mockResolvedValueOnce({ backend: {}, job: null, pollAfterSeconds: 5 })
       .mockRejectedValueOnce(temporary)
     const scheduler = new PollScheduler({ poll, onSuccess: vi.fn(), onTemporaryFailure: vi.fn(), onDefinitiveAuthenticationFailure: vi.fn() })
     scheduler.start()
@@ -47,7 +47,7 @@ describe('PollScheduler', () => {
 
   it('uses the five-second fallback when the backend interval is invalid', async () => {
     vi.useFakeTimers()
-    const poll = vi.fn().mockResolvedValue({ backend: {}, pollAfterSeconds: 0 })
+    const poll = vi.fn().mockResolvedValue({ backend: {}, job: null, pollAfterSeconds: 0 })
     const scheduler = new PollScheduler({ poll, onSuccess: vi.fn(), onTemporaryFailure: vi.fn(), onDefinitiveAuthenticationFailure: vi.fn() })
     scheduler.start()
     await vi.advanceTimersByTimeAsync(0)
@@ -60,7 +60,7 @@ describe('PollScheduler', () => {
 
   it('honors a valid backend interval greater than the failure-backoff maximum', async () => {
     vi.useFakeTimers()
-    const poll = vi.fn().mockResolvedValue({ backend: {}, pollAfterSeconds: 45 })
+    const poll = vi.fn().mockResolvedValue({ backend: {}, job: null, pollAfterSeconds: 45 })
     const scheduler = new PollScheduler({ poll, onSuccess: vi.fn(), onTemporaryFailure: vi.fn(), onDefinitiveAuthenticationFailure: vi.fn() })
     scheduler.start()
     await vi.advanceTimersByTimeAsync(0)

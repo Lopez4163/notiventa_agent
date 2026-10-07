@@ -1,9 +1,9 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, type Tray } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, type Tray } from 'electron'
 import { AgentController } from './agent-controller'
 import { NotiVentaApiClient } from './api-client'
 import { loadAgentConfig } from './config'
-import { WindowsCredentialStore } from './credential-store'
+import type { CredentialStore } from './credential-store'
 import { registerAgentIpc } from './ipc'
 import { detectSystemName, platformIdentifier } from './platform'
 import { PACKAGED_AGENT_BUILD_CONFIG } from './packaged-config'
@@ -28,7 +28,20 @@ app.whenReady().then(async () => {
     packaged: app.isPackaged ? PACKAGED_AGENT_BUILD_CONFIG : undefined
   })
   const settings = new ElectronSettingsStore()
-  const credentials = new WindowsCredentialStore()
+  let credentials: CredentialStore
+  try {
+    const { WindowsCredentialStore } = await import('./credential-store')
+    credentials = new WindowsCredentialStore()
+    console.info('[credentials] Secure Windows credential storage initialized.')
+  } catch {
+    console.error('[credentials] Secure Windows credential storage failed to initialize.')
+    dialog.showErrorBox(
+      'NotiVenta Agent',
+      'NotiVenta could not initialize secure Windows credential storage. Close the Agent and contact support.'
+    )
+    app.quit()
+    return
+  }
   const startup = new StartupService(app)
   startup.apply(settings.getStartWithWindows())
 
@@ -59,7 +72,16 @@ app.whenReady().then(async () => {
       app.quit()
     }
   })
-  await controller.initialize()
+  try {
+    await controller.initialize()
+  } catch {
+    console.error('[credentials] Secure Windows credential storage could not be read during startup.')
+    dialog.showErrorBox(
+      'NotiVenta Agent',
+      'NotiVenta could not restore its secure Device credential. Close the Agent and contact support.'
+    )
+    app.quit()
+  }
 })
 
 app.on('window-all-closed', () => {})

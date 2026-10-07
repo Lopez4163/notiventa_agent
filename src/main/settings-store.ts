@@ -1,9 +1,17 @@
 import Store from 'electron-store'
 import type { SafeDeviceMetadata } from '../shared/contracts'
+import {
+  parsePendingReceipt,
+  type PendingReceipt,
+  type PendingReceiptLoadResult
+} from './pending-receipt'
+
+export type { PendingReceipt, PendingReceiptLoadResult } from './pending-receipt'
 
 export interface LocalSettings {
   startWithWindows: boolean
   deviceMetadata?: SafeDeviceMetadata
+  pendingReceipt?: PendingReceipt
 }
 
 export interface SettingsStore {
@@ -12,6 +20,9 @@ export interface SettingsStore {
   getDeviceMetadata(): SafeDeviceMetadata | null
   setDeviceMetadata(metadata: SafeDeviceMetadata): void
   clearDeviceMetadata(): void
+  getPendingReceipt(): PendingReceiptLoadResult
+  setPendingReceipt(receipt: PendingReceipt): void
+  clearPendingReceipt(): void
 }
 
 export class ElectronSettingsStore implements SettingsStore {
@@ -38,5 +49,24 @@ export class ElectronSettingsStore implements SettingsStore {
 
   clearDeviceMetadata(): void {
     this.store.delete('deviceMetadata')
+  }
+
+  getPendingReceipt(): PendingReceiptLoadResult {
+    try {
+      return parsePendingReceipt(this.store.get('pendingReceipt'))
+    } catch {
+      return { kind: 'invalid' }
+    }
+  }
+
+  setPendingReceipt(receipt: PendingReceipt): void {
+    if (parsePendingReceipt(receipt).kind !== 'valid') {
+      throw new Error('Pending receipt metadata is invalid.')
+    }
+    this.store.set('pendingReceipt', receipt)
+  }
+
+  clearPendingReceipt(): void {
+    this.store.delete('pendingReceipt')
   }
 }
