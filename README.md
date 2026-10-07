@@ -4,6 +4,11 @@ Windows-first Electron foundation that pairs a computer with NotiVenta and keeps
 its backend-authoritative operational state synchronized. This is a standalone
 application and repository; it is not part of the backend or web frontend.
 
+The NotiVenta Agent is installed on the seller's Windows computer. It is never a
+Railway service. A Railway background service needed for Mercado Libre webhook
+processing is the **Celery worker**, built from the `notiventa_be` backend
+repository; it is not this Electron Agent.
+
 ## Setup
 
 Requirements: a current Node.js release with npm and a reachable NotiVenta V2
