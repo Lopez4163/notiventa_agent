@@ -66,6 +66,23 @@ or select an environment.
 Detailed build and validation instructions are in
 [`docs/windows-phase5-packaging-validation.md`](docs/windows-phase5-packaging-validation.md).
 
+### Interactive Windows package helper
+
+From a clean Windows checkout, the helper selects one of the supported package
+identities, updates the matching branch, runs the focused Agent checks, builds
+the installer, and asks before installing it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-validation\package-agent.ps1
+```
+
+Choose **Staging** for the HTTPS Railway staging package. It checks out
+`staging` and embeds `https://notiventabe-staging.up.railway.app`. Choose
+**Local VM validation** only in the ARM64 Windows VM; it checks out `dev` and
+uses the separate, fixed `http://192.168.64.1:8000` local-validation identity.
+The helper refuses a checkout with local changes and does not reset, stash, or
+overwrite work.
+
 ## Windows ARM64 local-VM validation packaging
 
 The Phase 5.4 Windows ARM64 VM has one separate, non-release package for the
