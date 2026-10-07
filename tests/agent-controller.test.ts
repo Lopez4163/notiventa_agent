@@ -227,6 +227,35 @@ describe('AgentController lifecycle', () => {
     expect(created.controller.getState().lifecycle).toBe('needs-pairing')
   })
 
+  it('can pair again after a revoked credential is cleared', async () => {
+    vi.useFakeTimers()
+    const api = {
+      pair: vi.fn().mockResolvedValue(pairResult),
+      poll: vi.fn()
+        .mockRejectedValueOnce(new DefinitiveDeviceAuthenticationError())
+        .mockResolvedValue(pollResult)
+    }
+    const created = createController(api)
+    created.credentials.credential = 'revoked-secret'
+
+    await created.controller.initialize()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(created.controller.getState().lifecycle).toBe('needs-pairing')
+    expect(created.credentials.credential).toBeNull()
+
+    await created.controller.pair({ pairingCode: '482193', displayName: 'Packing Station' })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(api.pair).toHaveBeenCalledWith({
+      pairingCode: '482193',
+      displayName: 'Packing Station',
+      systemName: 'DESKTOP-1'
+    })
+    expect(created.credentials.credential).toBe('raw-device-secret')
+    expect(created.controller.getState().lifecycle).toBe('connected')
+    created.controller.shutdown()
+  })
+
   it('logs credential lifecycle milestones without exposing the credential', async () => {
     vi.useFakeTimers()
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
