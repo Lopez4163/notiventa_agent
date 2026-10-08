@@ -194,8 +194,9 @@ checkpoint blocks new polling until terminal result delivery is acknowledged.
 PF3 now supplies the minimal Main-process `PrinterAdapter`, deterministic
 guarded `FakePrinterAdapter`, and `PrintCoordinator`. The coordinator maps only
 fake `SUCCESS`/`FAILURE`/`UNKNOWN` to simulated PF1/PF2 result events. It never
-emits physical `PRINTING`, and PF4—not PF3—will prove the full authorized fake
-path end to end.
+emits physical `PRINTING`. PF4 now validates the fake success, failure, and
+unknown flows through the PF2 HTTP client/outbox contract and PF1's local
+PostgreSQL endpoint lifecycle, including delivery loss and restart resend.
 
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
