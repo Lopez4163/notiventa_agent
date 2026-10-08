@@ -157,10 +157,11 @@ persists only non-secret receipt metadata (`jobId`, `attemptId`, print type,
 shipment ID, and optional order ID) in its local settings boundary. On restart,
 it acknowledges that pending receipt before polling. If no local receipt exists,
 it asks the Device-authenticated `GET /api/v1/agent/assignment` endpoint for
-its own existing `AUTHORIZED` assignment, persists that same assignment, then
-uses the normal idempotent receipt acknowledgement. Recovery never creates a
-second PrintAttempt or redispatches a job. Receipt does not download a label or
-invoke a printer.
+its own existing `AUTHORIZED` or `RECEIVED` assignment, persists that same
+assignment when needed, then uses the normal idempotent receipt acknowledgement.
+Recovery never creates a second PrintAttempt or redispatches a job. A received
+assignment remains Device-blocking until the future physical lifecycle resolves
+it. Receipt does not download a label or invoke a printer.
 
 Not implemented: printers, label files, physical printing, print-result
 events/outbox, retry/requeue, production signing, or auto-update.
