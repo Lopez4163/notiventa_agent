@@ -17,6 +17,7 @@ import {
   type PendingResultEvent,
   type ResultOutbox
 } from './result-outbox'
+import type { PrintCoordinator } from './printing/print-coordinator'
 
 export interface RecordPrintResultInput {
   jobId: string
@@ -185,20 +186,20 @@ export class AgentController {
     this.resultOutbox.close?.()
   }
 
-  recordPrintResult(input: RecordPrintResultInput): void {
+  recordPrintResult(input: RecordPrintResultInput): boolean {
     const active = this.settings.getActiveAssignment()
     if (active.kind !== 'valid' || active.assignment.job.jobId !== input.jobId || active.assignment.job.attemptId !== input.attemptId) {
       this.holdForInvalidLocalState('A print result does not match the active job. NotiVenta will not request more work.')
-      return
+      return false
     }
     const existing = this.resultOutbox.getPendingEvents()
     if (existing.kind === 'invalid') {
       this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
-      return
+      return false
     }
     if (existing.events.some((event) => event.attemptId === input.attemptId && event.type === input.type)) {
       console.info(`[result-outbox] Existing ${input.type} result retained for attempt ${input.attemptId}.`)
-      return
+      return true
     }
     const now = new Date().toISOString()
     const event: PendingResultEvent = {
@@ -217,10 +218,25 @@ export class AgentController {
       this.resultOutbox.add(event)
     } catch {
       this.holdForInvalidLocalState('Print result could not be saved safely. NotiVenta will not request more work.')
-      return
+      return false
     }
     console.info(`[result-outbox] Created ${event.eventId} for job ${event.jobId}.`)
     void this.flushResultOutbox()
+    return true
+  }
+
+  async executeActiveAssignment(coordinator: PrintCoordinator): Promise<boolean> {
+    const active = this.settings.getActiveAssignment()
+    if (active.kind !== 'valid') {
+      this.holdForInvalidLocalState('No valid active job is available for execution. NotiVenta will not request more work.')
+      return false
+    }
+    const { job } = active.assignment
+    return coordinator.execute({
+      jobId: job.jobId,
+      attemptId: job.attemptId,
+      document: { kind: 'SYNTHETIC_TEST' }
+    })
   }
 
   private async persistPendingCredential(): Promise<void> {
