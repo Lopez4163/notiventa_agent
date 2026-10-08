@@ -28,7 +28,7 @@ export function parsePendingReceipt(value: unknown): PendingReceiptLoadResult {
   }
 }
 
-function isReceivedPrintJob(value: unknown): value is ReceivedPrintJob {
+export function isReceivedPrintJob(value: unknown): value is ReceivedPrintJob {
   if (!value || typeof value !== 'object') return false
   const job = value as Record<string, unknown>
   return (

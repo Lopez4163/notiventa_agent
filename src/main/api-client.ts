@@ -6,6 +6,7 @@ import type {
   UpdateStatus
 } from '../shared/contracts'
 import type { AgentConfig } from './config'
+import type { PendingResultEvent } from './result-outbox'
 
 export class BackendError extends Error {
   constructor(
@@ -48,6 +49,10 @@ interface ReceiptAcknowledgementResponse {
   attemptId: string
   status: 'RECEIVED'
   receivedAt: string
+}
+
+interface PrintEventAcknowledgementResponse {
+  acknowledged: true
 }
 
 export class NotiVentaApiClient {
@@ -143,6 +148,33 @@ export class NotiVentaApiClient {
     }
   }
 
+  async submitPrintEvent(credential: string, event: PendingResultEvent): Promise<void> {
+    const response = await this.send(
+      `/api/v1/agent/jobs/${encodeURIComponent(event.jobId)}/events`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${credential}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          eventId: event.eventId,
+          attemptId: event.attemptId,
+          type: event.type,
+          executionMode: event.executionMode,
+          occurredAt: event.occurredAt,
+          errorCode: event.errorCode,
+          errorMessage: event.errorMessage
+        })
+      },
+      true
+    )
+    const body = (await response.json()) as Partial<PrintEventAcknowledgementResponse>
+    if (body.acknowledged !== true) {
+      throw new BackendError('NotiVenta returned an invalid print-result acknowledgement.', 200, 'INVALID_PRINT_EVENT_ACKNOWLEDGEMENT', true)
+    }
+  }
+
   private async send(path: string, init: RequestInit, authenticated = false): Promise<Response> {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10_000)
@@ -152,10 +184,10 @@ export class NotiVentaApiClient {
         signal: controller.signal
       })
       if (response.ok) return response
-      if (authenticated && (response.status === 401 || response.status === 403)) {
+      const errorBody = await safeErrorBody(response)
+      if (authenticated && (response.status === 401 || errorBody.code === 'DEVICE_UNAUTHORIZED')) {
         throw new DefinitiveDeviceAuthenticationError()
       }
-      const errorBody = await safeErrorBody(response)
       throw new BackendError(
         pairingErrorMessage(errorBody.code, response.status),
         response.status,

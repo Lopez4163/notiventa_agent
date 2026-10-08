@@ -8,6 +8,7 @@ import { registerAgentIpc } from './ipc'
 import { detectSystemName, platformIdentifier } from './platform'
 import { PACKAGED_AGENT_BUILD_CONFIG } from './packaged-config'
 import { ElectronSettingsStore } from './settings-store'
+import { SqliteResultOutbox } from './result-outbox'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
@@ -49,7 +50,8 @@ app.whenReady().then(async () => {
     new NotiVentaApiClient(config),
     credentials,
     settings,
-    detectSystemName()
+    detectSystemName(),
+    new SqliteResultOutbox(join(app.getPath('userData'), 'result-outbox.sqlite'))
   )
   mainWindow = createMainWindow(join(__dirname, `../preload/${PRELOAD_OUTPUT_FILENAME}`), {
     isPackaged: app.isPackaged,

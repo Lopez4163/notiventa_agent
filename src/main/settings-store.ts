@@ -1,17 +1,24 @@
 import Store from 'electron-store'
 import type { SafeDeviceMetadata } from '../shared/contracts'
 import {
+  parseActiveAssignment,
+  type ActiveAssignment,
+  type ActiveAssignmentLoadResult
+} from './active-assignment'
+import {
   parsePendingReceipt,
   type PendingReceipt,
   type PendingReceiptLoadResult
 } from './pending-receipt'
 
 export type { PendingReceipt, PendingReceiptLoadResult } from './pending-receipt'
+export type { ActiveAssignment, ActiveAssignmentLoadResult } from './active-assignment'
 
 export interface LocalSettings {
   startWithWindows: boolean
   deviceMetadata?: SafeDeviceMetadata
   pendingReceipt?: PendingReceipt
+  activeAssignment?: ActiveAssignment
 }
 
 export interface SettingsStore {
@@ -23,6 +30,9 @@ export interface SettingsStore {
   getPendingReceipt(): PendingReceiptLoadResult
   setPendingReceipt(receipt: PendingReceipt): void
   clearPendingReceipt(): void
+  getActiveAssignment(): ActiveAssignmentLoadResult
+  setActiveAssignment(assignment: ActiveAssignment): void
+  clearActiveAssignment(): void
 }
 
 export class ElectronSettingsStore implements SettingsStore {
@@ -68,5 +78,24 @@ export class ElectronSettingsStore implements SettingsStore {
 
   clearPendingReceipt(): void {
     this.store.delete('pendingReceipt')
+  }
+
+  getActiveAssignment(): ActiveAssignmentLoadResult {
+    try {
+      return parseActiveAssignment(this.store.get('activeAssignment'))
+    } catch {
+      return { kind: 'invalid' }
+    }
+  }
+
+  setActiveAssignment(assignment: ActiveAssignment): void {
+    if (parseActiveAssignment(assignment).kind !== 'valid') {
+      throw new Error('Active assignment metadata is invalid.')
+    }
+    this.store.set('activeAssignment', assignment)
+  }
+
+  clearActiveAssignment(): void {
+    this.store.delete('activeAssignment')
   }
 }

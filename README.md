@@ -163,8 +163,8 @@ Recovery never creates a second PrintAttempt or redispatches a job. A received
 assignment remains Device-blocking until the future physical lifecycle resolves
 it. Receipt does not download a label or invoke a printer.
 
-Not implemented: printers, label files, physical printing, print-result
-events/outbox, retry/requeue, production signing, or auto-update.
+Not implemented: printers, label files, physical printing, print retry/requeue,
+production signing, or auto-update.
 
 PF0 now locks the contract for the future receipt-to-result lifecycle without
 implementing those components. The same backend-owned `RECEIVED` assignment
@@ -186,10 +186,13 @@ before any new work; and a `PRINTING` attempt is never automatically invoked
 again after restart. Without a durable known result it remains unresolved and
 eventually becomes backend-authoritative `UNKNOWN`/`NEEDS_ATTENTION`.
 
-The next implementation slice is PF1: backend `AgentEvent` persistence, the
-result endpoint, authenticated ownership and job/attempt validation,
-idempotency, stale-attempt rejection, and the PF0 state transitions. PF1 does
-not implement a printer adapter.
+PF1 now provides the backend result endpoint, and PF2 provides the Agent's
+durable SQLite result outbox. Synthetic or later adapter-owned outcomes are
+saved locally before submission, retain one `eventId` across restart/retry, and
+are removed only after backend acknowledgement. A durable active-assignment
+checkpoint blocks new polling until terminal result delivery is acknowledged.
+PF3 will add the adapter; PF2 does not create printer results or call printer
+APIs.
 
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP

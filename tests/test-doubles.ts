@@ -4,6 +4,9 @@ import {
   type SettingsStore
 } from '../src/main/settings-store'
 import { parsePendingReceipt, type PendingReceiptLoadResult } from '../src/main/pending-receipt'
+import { parseActiveAssignment, type ActiveAssignmentLoadResult } from '../src/main/active-assignment'
+import type { ActiveAssignment } from '../src/main/settings-store'
+import type { PendingResultEvent, ResultOutbox, ResultOutboxLoadResult } from '../src/main/result-outbox'
 import type { SafeDeviceMetadata } from '../src/shared/contracts'
 
 export class MemoryCredentialStore implements CredentialStore {
@@ -33,6 +36,11 @@ export class MemorySettingsStore implements SettingsStore {
   pendingReceiptClearCount = 0
   pendingReceiptWriteFailuresRemaining = 0
   pendingReceiptClearFailuresRemaining = 0
+  activeAssignment: unknown = undefined
+  activeAssignmentWrites: ActiveAssignment[] = []
+  activeAssignmentClearCount = 0
+  activeAssignmentWriteFailuresRemaining = 0
+  activeAssignmentClearFailuresRemaining = 0
 
   getStartWithWindows(): boolean { return this.startWithWindows }
   setStartWithWindows(enabled: boolean): void { this.startWithWindows = enabled }
@@ -55,5 +63,51 @@ export class MemorySettingsStore implements SettingsStore {
     }
     this.pendingReceipt = undefined
     this.pendingReceiptClearCount += 1
+  }
+  getActiveAssignment(): ActiveAssignmentLoadResult { return parseActiveAssignment(this.activeAssignment) }
+  setActiveAssignment(assignment: ActiveAssignment): void {
+    this.activeAssignmentWrites.push(structuredClone(assignment))
+    if (this.activeAssignmentWriteFailuresRemaining > 0) {
+      this.activeAssignmentWriteFailuresRemaining -= 1
+      throw new Error('local settings store unavailable')
+    }
+    this.activeAssignment = structuredClone(assignment)
+  }
+  clearActiveAssignment(): void {
+    if (this.activeAssignmentClearFailuresRemaining > 0) {
+      this.activeAssignmentClearFailuresRemaining -= 1
+      throw new Error('local settings store unavailable')
+    }
+    this.activeAssignment = undefined
+    this.activeAssignmentClearCount += 1
+  }
+}
+
+export class MemoryResultOutbox implements ResultOutbox {
+  events: PendingResultEvent[] = []
+  invalid = false
+  addFailuresRemaining = 0
+  removeFailuresRemaining = 0
+  readonly added: PendingResultEvent[] = []
+  readonly removed: string[] = []
+
+  getPendingEvents(): ResultOutboxLoadResult {
+    return this.invalid ? { kind: 'invalid' } : { kind: 'valid', events: structuredClone(this.events) }
+  }
+  add(event: PendingResultEvent): void {
+    this.added.push(structuredClone(event))
+    if (this.addFailuresRemaining > 0) {
+      this.addFailuresRemaining -= 1
+      throw new Error('result outbox unavailable')
+    }
+    this.events.push(structuredClone(event))
+  }
+  remove(eventId: string): void {
+    this.removed.push(eventId)
+    if (this.removeFailuresRemaining > 0) {
+      this.removeFailuresRemaining -= 1
+      throw new Error('result outbox unavailable')
+    }
+    this.events = this.events.filter((event) => event.eventId !== eventId)
   }
 }

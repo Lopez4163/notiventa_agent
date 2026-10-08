@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import { randomUUID } from 'node:crypto'
 import type { AgentState, PairDeviceInput, ReceivedPrintJob } from '../shared/contracts'
 import { validatePairDeviceInput } from '../shared/validation'
 import {
@@ -9,6 +10,23 @@ import {
 import type { CredentialStore } from './credential-store'
 import { PollScheduler } from './poll-scheduler'
 import type { SettingsStore } from './settings-store'
+import {
+  isTerminalResultType,
+  type AgentResultExecutionMode,
+  type AgentResultType,
+  type PendingResultEvent,
+  type ResultOutbox
+} from './result-outbox'
+
+export interface RecordPrintResultInput {
+  jobId: string
+  attemptId: string
+  type: AgentResultType
+  executionMode: AgentResultExecutionMode
+  occurredAt?: string
+  errorCode?: string | null
+  errorMessage?: string | null
+}
 
 export class AgentController {
   private readonly events = new EventEmitter()
@@ -20,9 +38,11 @@ export class AgentController {
   private receiptPersistenceRetryTimer: ReturnType<typeof setTimeout> | null = null
   private receiptRetryTimer: ReturnType<typeof setTimeout> | null = null
   private assignmentRecoveryRetryTimer: ReturnType<typeof setTimeout> | null = null
+  private resultDeliveryRetryTimer: ReturnType<typeof setTimeout> | null = null
   private credentialWriteInFlight = false
   private receiptAcknowledgementInFlight = false
   private assignmentRecoveryInFlight = false
+  private resultDeliveryInFlight = false
   private pendingReceiptPersistence: ReceivedPrintJob | null = null
   private pendingReceiptAcknowledgement: ReceivedPrintJob | null = null
 
@@ -30,7 +50,8 @@ export class AgentController {
     private readonly api: NotiVentaApiClient,
     private readonly credentials: CredentialStore,
     private readonly settings: SettingsStore,
-    systemName: string
+    systemName: string,
+    private readonly resultOutbox: ResultOutbox
   ) {
     this.state = {
       lifecycle: 'needs-pairing',
@@ -67,12 +88,22 @@ export class AgentController {
   }
 
   async initialize(): Promise<void> {
+    const outbox = this.resultOutbox.getPendingEvents()
+    if (outbox.kind === 'invalid') {
+      this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
+      return
+    }
     const pendingReceipt = this.settings.getPendingReceipt()
     if (pendingReceipt.kind === 'invalid') {
       this.update({
         lifecycle: 'disconnected',
         error: 'Pending job receipt data is invalid. NotiVenta will not request more work.'
       })
+      return
+    }
+    const activeAssignment = this.settings.getActiveAssignment()
+    if (activeAssignment.kind === 'invalid') {
+      this.holdForInvalidLocalState('Active job data is invalid. NotiVenta will not request more work.')
       return
     }
 
@@ -83,28 +114,21 @@ export class AgentController {
         lifecycle: 'needs-pairing',
         device: null,
         backend: null,
-        receivedJob: pendingReceipt.kind === 'valid' ? pendingReceipt.receipt.job : null,
-        error: pendingReceipt.kind === 'valid'
-          ? 'A pending job receipt requires this computer to be paired again.'
-          : null
+        receivedJob: activeAssignment.kind === 'valid' ? activeAssignment.assignment.job : pendingReceipt.kind === 'valid' ? pendingReceipt.receipt.job : null,
+        error: outbox.events.length > 0 || pendingReceipt.kind === 'valid' || activeAssignment.kind === 'valid'
+          ? 'Saved Agent work requires this computer to be paired again.' : null
       })
       return
     }
 
     console.info('[credentials] Secure Device credential restored.')
-    if (pendingReceipt.kind === 'valid') {
-      this.pendingReceiptAcknowledgement = pendingReceipt.receipt.job
-      this.update({
-        lifecycle: 'connecting',
-        receivedJob: pendingReceipt.receipt.job,
-        error: 'Job receipt acknowledgement is pending.'
-      })
-      await this.acknowledgeReceivedJob()
+    this.update({ lifecycle: 'connecting', receivedJob: activeAssignment.kind === 'valid' ? activeAssignment.assignment.job : pendingReceipt.kind === 'valid' ? pendingReceipt.receipt.job : null, error: null })
+    if (outbox.events.length > 0) {
+      console.info(`[result-outbox] Restoring ${outbox.events.length} pending result event(s).`)
+      await this.flushResultOutbox()
       return
     }
-
-    this.update({ lifecycle: 'connecting', error: null })
-    await this.recoverCurrentAssignment()
+    await this.resumeAfterDurableWork()
   }
 
   async pair(input: PairDeviceInput): Promise<AgentState> {
@@ -149,13 +173,54 @@ export class AgentController {
     if (this.receiptPersistenceRetryTimer) clearTimeout(this.receiptPersistenceRetryTimer)
     if (this.receiptRetryTimer) clearTimeout(this.receiptRetryTimer)
     if (this.assignmentRecoveryRetryTimer) clearTimeout(this.assignmentRecoveryRetryTimer)
+    if (this.resultDeliveryRetryTimer) clearTimeout(this.resultDeliveryRetryTimer)
     this.credentialRetryTimer = null
     this.receiptPersistenceRetryTimer = null
     this.receiptRetryTimer = null
     this.assignmentRecoveryRetryTimer = null
+    this.resultDeliveryRetryTimer = null
     this.pendingCredential = null
     this.pendingDevice = null
     this.pendingReceiptAcknowledgement = null
+    this.resultOutbox.close?.()
+  }
+
+  recordPrintResult(input: RecordPrintResultInput): void {
+    const active = this.settings.getActiveAssignment()
+    if (active.kind !== 'valid' || active.assignment.job.jobId !== input.jobId || active.assignment.job.attemptId !== input.attemptId) {
+      this.holdForInvalidLocalState('A print result does not match the active job. NotiVenta will not request more work.')
+      return
+    }
+    const existing = this.resultOutbox.getPendingEvents()
+    if (existing.kind === 'invalid') {
+      this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
+      return
+    }
+    if (existing.events.some((event) => event.attemptId === input.attemptId && event.type === input.type)) {
+      console.info(`[result-outbox] Existing ${input.type} result retained for attempt ${input.attemptId}.`)
+      return
+    }
+    const now = new Date().toISOString()
+    const event: PendingResultEvent = {
+      version: 1,
+      eventId: randomUUID(),
+      jobId: input.jobId,
+      attemptId: input.attemptId,
+      type: input.type,
+      executionMode: input.executionMode,
+      occurredAt: input.occurredAt ?? now,
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      createdAt: now
+    }
+    try {
+      this.resultOutbox.add(event)
+    } catch {
+      this.holdForInvalidLocalState('Print result could not be saved safely. NotiVenta will not request more work.')
+      return
+    }
+    console.info(`[result-outbox] Created ${event.eventId} for job ${event.jobId}.`)
+    void this.flushResultOutbox()
   }
 
   private async persistPendingCredential(): Promise<void> {
@@ -203,6 +268,7 @@ export class AgentController {
       await this.api.acknowledgeReceipt(credential, job.attemptId)
       if (this.pendingReceiptAcknowledgement?.attemptId === job.attemptId) {
         try {
+          this.settings.setActiveAssignment({ version: 1, job })
           this.settings.clearPendingReceipt()
         } catch {
           this.update({ error: 'Job receipt acknowledgement is pending.' })
@@ -212,8 +278,8 @@ export class AgentController {
         this.pendingReceiptAcknowledgement = null
         if (this.receiptRetryTimer) clearTimeout(this.receiptRetryTimer)
         this.receiptRetryTimer = null
-        this.update({ error: null })
-        this.scheduler.start(5_000)
+        this.update({ lifecycle: 'connected', receivedJob: job, error: 'This job is awaiting a durable print result.' })
+        this.scheduler.stop()
       }
     } catch (error) {
       if (error instanceof DefinitiveDeviceAuthenticationError) {
@@ -322,6 +388,33 @@ export class AgentController {
   }
 
   private resumeAfterCredentialPersistence(): void {
+    void this.resumeAfterDurableWork()
+  }
+
+  private async resumeAfterDurableWork(): Promise<void> {
+    const outbox = this.resultOutbox.getPendingEvents()
+    if (outbox.kind === 'invalid') {
+      this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
+      return
+    }
+    if (outbox.events.length > 0) {
+      await this.flushResultOutbox()
+      return
+    }
+    const activeAssignment = this.settings.getActiveAssignment()
+    if (activeAssignment.kind === 'invalid') {
+      this.holdForInvalidLocalState('Active job data is invalid. NotiVenta will not request more work.')
+      return
+    }
+    if (activeAssignment.kind === 'valid') {
+      this.scheduler.stop()
+      this.update({
+        lifecycle: 'connected',
+        receivedJob: activeAssignment.assignment.job,
+        error: 'This job is awaiting a durable print result.'
+      })
+      return
+    }
     const pendingReceipt = this.settings.getPendingReceipt()
     if (pendingReceipt.kind === 'invalid') {
       this.update({
@@ -336,10 +429,70 @@ export class AgentController {
         receivedJob: pendingReceipt.receipt.job,
         error: 'Job receipt acknowledgement is pending.'
       })
-      void this.acknowledgeReceivedJob()
+      await this.acknowledgeReceivedJob()
       return
     }
-    void this.recoverCurrentAssignment()
+    await this.recoverCurrentAssignment()
+  }
+
+  private async flushResultOutbox(): Promise<void> {
+    if (this.resultDeliveryInFlight) return
+    const loaded = this.resultOutbox.getPendingEvents()
+    if (loaded.kind === 'invalid') {
+      this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
+      return
+    }
+    const event = loaded.events[0]
+    if (!event) {
+      await this.resumeAfterDurableWork()
+      return
+    }
+    this.scheduler.stop()
+    this.resultDeliveryInFlight = true
+    let delivered = false
+    try {
+      const credential = await this.credentials.get()
+      if (!credential) throw new Error('Device credential is unavailable.')
+      console.info(`[result-outbox] Sending ${event.eventId} for job ${event.jobId}.`)
+      await this.api.submitPrintEvent(credential, event)
+      if (isTerminalResultType(event.type)) {
+        const active = this.settings.getActiveAssignment()
+        if (active.kind !== 'valid' || active.assignment.job.attemptId !== event.attemptId) {
+          throw new Error('Active job state could not be cleared safely.')
+        }
+        this.settings.clearActiveAssignment()
+      }
+      this.resultOutbox.remove(event.eventId)
+      if (this.resultDeliveryRetryTimer) clearTimeout(this.resultDeliveryRetryTimer)
+      this.resultDeliveryRetryTimer = null
+      console.info(`[result-outbox] Acknowledged ${event.eventId}.`)
+      delivered = true
+    } catch (error) {
+      if (error instanceof DefinitiveDeviceAuthenticationError) {
+        await this.handleDefinitiveAuthenticationFailure()
+      } else if (error instanceof BackendError && !error.temporary) {
+        this.update({ lifecycle: 'disconnected', error: 'Saved print result was rejected. NotiVenta will not request more work.' })
+      } else {
+        this.update({ lifecycle: 'disconnected', error: 'Saved print result delivery is pending.' })
+        this.scheduleResultDeliveryRetry()
+      }
+    } finally {
+      this.resultDeliveryInFlight = false
+    }
+    if (delivered) await this.flushResultOutbox()
+  }
+
+  private scheduleResultDeliveryRetry(): void {
+    if (this.resultDeliveryRetryTimer) return
+    this.resultDeliveryRetryTimer = setTimeout(() => {
+      this.resultDeliveryRetryTimer = null
+      void this.flushResultOutbox()
+    }, 5_000)
+  }
+
+  private holdForInvalidLocalState(error: string): void {
+    this.scheduler.stop()
+    this.update({ lifecycle: 'disconnected', error })
   }
 
   private async handleDefinitiveAuthenticationFailure(): Promise<void> {
