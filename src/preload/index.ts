@@ -12,7 +12,8 @@ const api: AgentRendererApi = Object.freeze({
   },
   getStartWithWindows: () => ipcRenderer.invoke(IPC_CHANNELS.getStartWithWindows),
   setStartWithWindows: (enabled: boolean) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setStartWithWindows, enabled)
+    ipcRenderer.invoke(IPC_CHANNELS.setStartWithWindows, enabled),
+  listInstalledPrinters: () => ipcRenderer.invoke(IPC_CHANNELS.listInstalledPrinters)
 })
 
 contextBridge.exposeInMainWorld('notiventa', api)

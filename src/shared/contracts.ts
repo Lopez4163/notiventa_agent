@@ -37,6 +37,19 @@ export interface ReceivedPrintJob {
   orderId: string | null
 }
 
+export interface DiscoveredPrinter {
+  systemName: string
+  displayName: string
+  description: string | null
+  isDefault: boolean
+  available: boolean
+}
+
+export type PrinterDiscoveryResult = {
+  printers: DiscoveredPrinter[]
+  error: 'PRINTER_DISCOVERY_UNAVAILABLE' | null
+}
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -52,6 +65,7 @@ export interface AgentRendererApi {
   subscribeToState(listener: (state: AgentState) => void): () => void
   getStartWithWindows(): Promise<boolean>
   setStartWithWindows(enabled: boolean): Promise<boolean>
+  listInstalledPrinters(): Promise<PrinterDiscoveryResult>
 }
 
 export const IPC_CHANNELS = {
@@ -59,5 +73,6 @@ export const IPC_CHANNELS = {
   pairDevice: 'agent:pair-device',
   stateChanged: 'agent:state-changed',
   getStartWithWindows: 'agent:get-start-with-windows',
-  setStartWithWindows: 'agent:set-start-with-windows'
+  setStartWithWindows: 'agent:set-start-with-windows',
+  listInstalledPrinters: 'agent:list-installed-printers'
 } as const

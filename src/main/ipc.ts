@@ -4,15 +4,17 @@ import { validateBoolean, validatePairDeviceInput } from '../shared/validation'
 import type { AgentController } from './agent-controller'
 import type { SettingsStore } from './settings-store'
 import type { StartupService } from './startup-service'
+import type { PrinterDiscovery } from './printers/printer-discovery'
 
 export function registerAgentIpc(options: {
   ipcMain: IpcMain
   controller: AgentController
   settings: SettingsStore
   startup: StartupService
+  printerDiscovery: PrinterDiscovery
   getWindow: () => BrowserWindow | null
 }): () => void {
-  const { ipcMain, controller, settings, startup, getWindow } = options
+  const { ipcMain, controller, settings, startup, printerDiscovery, getWindow } = options
   const assertTrustedSender = (event: IpcMainInvokeEvent): void => {
     const window = getWindow()
     if (!window || event.sender.id !== window.webContents.id) {
@@ -39,6 +41,10 @@ export function registerAgentIpc(options: {
     startup.apply(enabled)
     return enabled
   })
+  ipcMain.handle(IPC_CHANNELS.listInstalledPrinters, async (event) => {
+    assertTrustedSender(event)
+    return printerDiscovery.listPrinters()
+  })
 
   const unsubscribe = controller.onState((state) => {
     const window = getWindow()
@@ -53,7 +59,8 @@ export function registerAgentIpc(options: {
       IPC_CHANNELS.getState,
       IPC_CHANNELS.pairDevice,
       IPC_CHANNELS.getStartWithWindows,
-      IPC_CHANNELS.setStartWithWindows
+      IPC_CHANNELS.setStartWithWindows,
+      IPC_CHANNELS.listInstalledPrinters
     ]) {
       ipcMain.removeHandler(channel)
     }

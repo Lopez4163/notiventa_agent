@@ -198,6 +198,14 @@ emits physical `PRINTING`. PF4 now validates the fake success, failure, and
 unknown flows through the PF2 HTTP client/outbox contract and PF1's local
 PostgreSQL endpoint lifecycle, including delivery loss and restart resend.
 
+PF5 adds a read-only installed-printer discovery boundary using Electron's
+`webContents.getPrintersAsync()`. It normalizes the Windows queue name,
+display name, optional description, and default marker. A queue is only
+"available" when that exact case-insensitive Windows queue identity is present
+in the current enumeration; this does not prove hardware health or printability.
+PF5 never submits a print job or persists a user selection. PF6 owns selection
+and configuration persistence.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,

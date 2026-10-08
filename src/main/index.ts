@@ -9,6 +9,7 @@ import { detectSystemName, platformIdentifier } from './platform'
 import { PACKAGED_AGENT_BUILD_CONFIG } from './packaged-config'
 import { ElectronSettingsStore } from './settings-store'
 import { SqliteResultOutbox } from './result-outbox'
+import { ElectronPrinterDiscovery } from './printers/printer-discovery'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
@@ -65,6 +66,14 @@ app.whenReady().then(async () => {
     controller,
     settings,
     startup,
+    printerDiscovery: new ElectronPrinterDiscovery({
+      getPrintersAsync: async () => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          throw new Error('Agent window is unavailable for printer discovery.')
+        }
+        return mainWindow.webContents.getPrintersAsync()
+      }
+    }),
     getWindow: () => mainWindow
   })
   tray = createAgentTray({
