@@ -166,6 +166,31 @@ it. Receipt does not download a label or invoke a printer.
 Not implemented: printers, label files, physical printing, print-result
 events/outbox, retry/requeue, production signing, or auto-update.
 
+PF0 now locks the contract for the future receipt-to-result lifecycle without
+implementing those components. The same backend-owned `RECEIVED` assignment
+will be orchestrated by an Electron Main `PrintCoordinator` and a
+`PrinterAdapter`; adapters will never call the backend, mutate workflow state,
+persist result events, choose retries, fetch Mercado Libre labels, or receive
+Device credentials.
+
+Fake execution is restricted to test dependency injection, unpackaged
+development composition, and immutable `local-validation` builds. Staging and
+production builds must fail closed rather than construct a fake adapter, and
+the backend will independently accept result events marked `SIMULATED` only
+when its normalized environment is `dev`, `development`, `test`, or `testing`.
+No user-facing or general runtime fake-print switch is planned.
+
+PF0 also locks restart behavior: a `RECEIVED` assignment recovers with the same
+job/attempt identity; a durable known result is resent with the same `eventId`
+before any new work; and a `PRINTING` attempt is never automatically invoked
+again after restart. Without a durable known result it remains unresolved and
+eventually becomes backend-authoritative `UNKNOWN`/`NEEDS_ATTENTION`.
+
+The next implementation slice is PF1: backend `AgentEvent` persistence, the
+result endpoint, authenticated ownership and job/attempt validation,
+idempotency, stale-attempt rejection, and the PF0 state transitions. PF1 does
+not implement a printer adapter.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,
