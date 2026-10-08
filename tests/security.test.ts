@@ -7,7 +7,8 @@ import { PRELOAD_OUTPUT_FILENAME } from '../src/shared/build-artifacts'
 describe('Electron security boundary', () => {
   it('exposes only the intended Agent IPC channels', () => {
     expect(Object.keys(IPC_CHANNELS).sort()).toEqual([
-      'getStartWithWindows', 'getState', 'listInstalledPrinters', 'pairDevice', 'setStartWithWindows', 'stateChanged'
+      'clearPrinterConfiguration', 'getPrinterConfiguration', 'getStartWithWindows', 'getState',
+      'listInstalledPrinters', 'pairDevice', 'selectPrinter', 'setStartWithWindows', 'stateChanged'
     ])
   })
 

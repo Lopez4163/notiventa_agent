@@ -8,6 +8,8 @@ import { parseActiveAssignment, type ActiveAssignmentLoadResult } from '../src/m
 import type { ActiveAssignment } from '../src/main/settings-store'
 import type { PendingResultEvent, ResultOutbox, ResultOutboxLoadResult } from '../src/main/result-outbox'
 import type { SafeDeviceMetadata } from '../src/shared/contracts'
+import type { PrinterConfiguration } from '../src/shared/contracts'
+import { parsePrinterConfiguration, type PrinterConfigurationLoadResult } from '../src/main/printers/printer-configuration'
 
 export class MemoryCredentialStore implements CredentialStore {
   credential: string | null = null
@@ -41,6 +43,8 @@ export class MemorySettingsStore implements SettingsStore {
   activeAssignmentClearCount = 0
   activeAssignmentWriteFailuresRemaining = 0
   activeAssignmentClearFailuresRemaining = 0
+  printerConfiguration: unknown = undefined
+  printerConfigurationWriteFailuresRemaining = 0
 
   getStartWithWindows(): boolean { return this.startWithWindows }
   setStartWithWindows(enabled: boolean): void { this.startWithWindows = enabled }
@@ -81,6 +85,15 @@ export class MemorySettingsStore implements SettingsStore {
     this.activeAssignment = undefined
     this.activeAssignmentClearCount += 1
   }
+  getPrinterConfiguration(): PrinterConfigurationLoadResult { return parsePrinterConfiguration(this.printerConfiguration) }
+  setPrinterConfiguration(configuration: PrinterConfiguration): void {
+    if (this.printerConfigurationWriteFailuresRemaining > 0) {
+      this.printerConfigurationWriteFailuresRemaining -= 1
+      throw new Error('local settings store unavailable')
+    }
+    this.printerConfiguration = structuredClone(configuration)
+  }
+  clearPrinterConfiguration(): void { this.printerConfiguration = undefined }
 }
 
 export class MemoryResultOutbox implements ResultOutbox {

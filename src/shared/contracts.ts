@@ -50,6 +50,24 @@ export type PrinterDiscoveryResult = {
   error: 'PRINTER_DISCOVERY_UNAVAILABLE' | null
 }
 
+export interface PrinterConfiguration {
+  systemName: string
+  profile: {
+    printType: 'SHIPPING_LABEL'
+    width: 4
+    height: 6
+    unit: 'INCH'
+  }
+}
+
+export interface PrinterConfigurationStatus {
+  configured: boolean
+  configuration: PrinterConfiguration | null
+  available: boolean
+  discoveredPrinter: DiscoveredPrinter | null
+  error: 'PRINTER_CONFIGURATION_INVALID' | 'PRINTER_DISCOVERY_UNAVAILABLE' | null
+}
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -66,6 +84,9 @@ export interface AgentRendererApi {
   getStartWithWindows(): Promise<boolean>
   setStartWithWindows(enabled: boolean): Promise<boolean>
   listInstalledPrinters(): Promise<PrinterDiscoveryResult>
+  getPrinterConfiguration(): Promise<PrinterConfigurationStatus>
+  selectPrinter(systemName: string): Promise<PrinterConfigurationStatus>
+  clearPrinterConfiguration(): Promise<PrinterConfigurationStatus>
 }
 
 export const IPC_CHANNELS = {
@@ -74,5 +95,8 @@ export const IPC_CHANNELS = {
   stateChanged: 'agent:state-changed',
   getStartWithWindows: 'agent:get-start-with-windows',
   setStartWithWindows: 'agent:set-start-with-windows',
-  listInstalledPrinters: 'agent:list-installed-printers'
+  listInstalledPrinters: 'agent:list-installed-printers',
+  getPrinterConfiguration: 'agent:get-printer-configuration',
+  selectPrinter: 'agent:select-printer',
+  clearPrinterConfiguration: 'agent:clear-printer-configuration'
 } as const

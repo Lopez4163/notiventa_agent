@@ -206,6 +206,11 @@ in the current enumeration; this does not prove hardware health or printability.
 PF5 never submits a print job or persists a user selection. PF6 owns selection
 and configuration persistence.
 
+PF6 stores one local selected Windows queue name and the fixed `SHIPPING_LABEL`
+4 × 6 inch profile in Electron settings. Restart restores that selection; a
+missing queue remains remembered but unavailable. The Agent never substitutes
+the OS default queue, persists this setting to the backend, or prints on select.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,
