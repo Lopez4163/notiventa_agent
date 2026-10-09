@@ -220,6 +220,15 @@ configured queue without default fallback; malformed or absent configuration is
 `NOT_CONFIGURED`. The trusted renderer API exposes the normalized report only;
 it exposes no native print API and PF7 sends no backend readiness signal.
 
+PF7.5 adds the small local Printer settings UI over those existing trusted
+Agent APIs only. It lists normalized discovered queues, lets a user explicitly
+select or clear the already-supported local configuration, and shows the fixed
+`4 × 6 Shipping Label` profile. It remains read-only with respect to printer
+execution: `READY` means only “Configured and currently visible to NotiVenta,”
+not printer health, loaded labels, spooler health, or a guaranteed print. A
+remembered missing queue remains selected as `UNAVAILABLE`; the UI never adopts
+a default or fallback queue, sends backend state, downloads labels, or prints.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,
