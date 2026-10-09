@@ -39,6 +39,7 @@ button {
   font-weight: 800;
   cursor: pointer;
 }
+button:disabled { cursor: wait; opacity: .6; }
 .detected, .status-row {
   display: flex;
   justify-content: space-between;
@@ -57,3 +58,22 @@ button {
 .toggle { display: flex; grid-template-columns: auto 1fr; align-items: center; margin-top: 28px; }
 .toggle input { width: 18px; height: 18px; }
 .hint { margin-top: 24px; font-size: 12px; }
+.printer-section { display: grid; gap: 12px; margin-top: 32px; padding-top: 26px; border-top: 1px solid #d6dfe8; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+h2, h3 { margin: 0; }
+h2 { font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
+h3 { margin-top: 10px; font-size: 14px; }
+.secondary { color: #087a68; background: white; border: 1px solid #9db9b4; padding: 9px 12px; }
+.printer-explanation { margin: 0; font-size: 13px; }
+.printer-details { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; padding: 13px 15px; border: 1px solid #dbe2ea; border-radius: 9px; background: rgb(255 255 255 / 70%); }
+.printer-details span { color: #667383; font-size: 13px; }
+.printer-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.printer-list { display: grid; gap: 7px; }
+.printer-option { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #dbe2ea; border-radius: 9px; background: rgb(255 255 255 / 70%); font-weight: 600; cursor: pointer; }
+.printer-option input { width: 16px; height: 16px; padding: 0; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: rgb(29 38 51 / 42%); }
+.dialog { display: grid; width: min(100%, 480px); max-height: calc(100vh - 48px); gap: 14px; overflow: auto; padding: 22px; border-radius: 12px; background: #f9fbfd; box-shadow: 0 18px 45px rgb(29 38 51 / 28%); }
+.dialog p { margin: 0; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 4px; }
+.missing-printer { display: grid; gap: 4px; padding: 12px; border: 1px solid #e5c783; border-radius: 9px; background: #fff4d8; }
+.missing-printer small { color: #6d5310; }

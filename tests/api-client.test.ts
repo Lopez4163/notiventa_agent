@@ -115,6 +115,31 @@ describe('NotiVenta API client', () => {
     await expect(new NotiVentaApiClient(config, request).poll('revoked')).rejects.toBeInstanceOf(DefinitiveDeviceAuthenticationError)
   })
 
+  it('sends the exact PF1 result-event contract and accepts its acknowledgement', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ acknowledged: true }), { status: 200 }))
+    await new NotiVentaApiClient(config, request).submitPrintEvent('device-secret', {
+      version: 1, eventId: '33333333-3333-4333-8333-333333333333',
+      jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222',
+      type: 'PRINT_FAILED', executionMode: 'SIMULATED', occurredAt: '2026-10-08T15:00:00Z',
+      errorCode: 'TEST_FAILURE', errorMessage: 'safe test message', createdAt: '2026-10-08T15:00:00Z'
+    })
+    const [url, init] = request.mock.calls[0]
+    expect(String(url)).toBe('https://dev.example.test/api/v1/agent/jobs/11111111-1111-4111-8111-111111111111/events')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      eventId: '33333333-3333-4333-8333-333333333333', attemptId: '22222222-2222-4222-8222-222222222222',
+      type: 'PRINT_FAILED', executionMode: 'SIMULATED', occurredAt: '2026-10-08T15:00:00Z', errorCode: 'TEST_FAILURE', errorMessage: 'safe test message'
+    })
+  })
+
+  it('keeps a PF1 simulated-event rejection as a permanent delivery error, not credential revocation', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'SIMULATED_PRINT_EVENT_NOT_ALLOWED' } }), { status: 403 }))
+    await expect(new NotiVentaApiClient(config, request).submitPrintEvent('device-secret', {
+      version: 1, eventId: '33333333-3333-4333-8333-333333333333',
+      jobId: '11111111-1111-4111-8111-111111111111', attemptId: '22222222-2222-4222-8222-222222222222',
+      type: 'PRINT_FAILED', executionMode: 'SIMULATED', occurredAt: '2026-10-08T15:00:00Z', errorCode: null, errorMessage: null, createdAt: '2026-10-08T15:00:00Z'
+    })).rejects.toMatchObject({ status: 403, code: 'SIMULATED_PRINT_EVENT_NOT_ALLOWED', temporary: false })
+  })
+
   it('returns a user-safe pairing error', async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'PAIRING_CODE_EXPIRED' } }), { status: 400 }))
     await expect(new NotiVentaApiClient(config, request).pair({ pairingCode: '482193', systemName: 'PC', displayName: 'Packing' })).rejects.toThrow('expired')

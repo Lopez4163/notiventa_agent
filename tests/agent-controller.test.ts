@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AgentController } from '../src/main/agent-controller'
 import { BackendError, DefinitiveDeviceAuthenticationError, type NotiVentaApiClient } from '../src/main/api-client'
-import { MemoryCredentialStore, MemorySettingsStore } from './test-doubles'
+import { MemoryCredentialStore, MemoryResultOutbox, MemorySettingsStore } from './test-doubles'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -100,7 +100,7 @@ describe('AgentController lifecycle', () => {
     created.controller.shutdown()
   })
 
-  it('persists a recovered assignment before acknowledging it and then polls', async () => {
+  it('persists a recovered assignment before acknowledging it and holds it for a result', async () => {
     vi.useFakeTimers()
     const settings = new MemorySettingsStore()
     const api = {
@@ -123,8 +123,8 @@ describe('AgentController lifecycle', () => {
     expect(api.poll).not.toHaveBeenCalled()
     expect(api.acknowledgeReceipt).toHaveBeenCalledWith('stored-secret', receivedJob.attemptId)
     expect(settings.pendingReceiptWrites).toEqual([{ version: 1, job: receivedJob }])
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(api.acknowledgeReceipt.mock.invocationCallOrder[0]).toBeLessThan(api.poll.mock.invocationCallOrder[0])
+    expect(settings.getActiveAssignment()).toEqual({ kind: 'valid', assignment: { version: 1, job: receivedJob } })
+    expect(api.poll).not.toHaveBeenCalled()
     created.controller.shutdown()
   })
 
@@ -357,7 +357,7 @@ describe('AgentController lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(5_000)
     expect(api.acknowledgeReceipt).toHaveBeenCalledTimes(2)
-    expect(created.controller.getState().error).toBeNull()
+    expect(created.controller.getState().error).toBe('This job is awaiting a durable print result.')
     expect(created.settings.getPendingReceipt()).toEqual({ kind: 'none' })
     created.controller.shutdown()
   })
@@ -411,7 +411,7 @@ describe('AgentController lifecycle', () => {
     created.controller.shutdown()
   })
 
-  it('restores a pending receipt, acknowledges it before polling, then resumes polling', async () => {
+  it('restores a pending receipt, acknowledges it, then holds the active job for a result', async () => {
     vi.useFakeTimers()
     const settings = new MemorySettingsStore()
     settings.pendingReceipt = { version: 1, job: receivedJob }
@@ -429,9 +429,9 @@ describe('AgentController lifecycle', () => {
 
     expect(api.acknowledgeReceipt).toHaveBeenCalledWith('stored-secret', receivedJob.attemptId)
     expect(api.poll).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(api.acknowledgeReceipt.mock.invocationCallOrder[0]).toBeLessThan(api.poll.mock.invocationCallOrder[0])
     expect(created.settings.getPendingReceipt()).toEqual({ kind: 'none' })
+    expect(settings.getActiveAssignment()).toEqual({ kind: 'valid', assignment: { version: 1, job: receivedJob } })
+    expect(api.poll).not.toHaveBeenCalled()
     expect(created.controller.getState().lifecycle).toBe('connected')
     created.controller.shutdown()
   })
@@ -458,7 +458,7 @@ describe('AgentController lifecycle', () => {
     expect(api.acknowledgeReceipt).toHaveBeenCalledTimes(2)
     expect(api.poll).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(5_000)
-    expect(api.poll).toHaveBeenCalledOnce()
+    expect(api.poll).not.toHaveBeenCalled()
     expect(created.settings.getPendingReceipt()).toEqual({ kind: 'none' })
     created.controller.shutdown()
   })
@@ -512,13 +512,15 @@ function createController(api: {
 }, stores?: {
   credentials?: MemoryCredentialStore
   settings?: MemorySettingsStore
+  outbox?: MemoryResultOutbox
 }) {
   const credentials = stores?.credentials ?? new MemoryCredentialStore()
   const settings = stores?.settings ?? new MemorySettingsStore()
+  const outbox = stores?.outbox ?? new MemoryResultOutbox()
   const client = {
     recoverCurrentAssignment: vi.fn().mockResolvedValue(null),
     ...api
   }
-  const controller = new AgentController(client as unknown as NotiVentaApiClient, credentials, settings, 'DESKTOP-1')
-  return { controller, credentials, settings }
+  const controller = new AgentController(client as unknown as NotiVentaApiClient, credentials, settings, 'DESKTOP-1', outbox)
+  return { controller, credentials, settings, outbox }
 }

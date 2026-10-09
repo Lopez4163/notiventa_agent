@@ -12,7 +12,12 @@ const api: AgentRendererApi = Object.freeze({
   },
   getStartWithWindows: () => ipcRenderer.invoke(IPC_CHANNELS.getStartWithWindows),
   setStartWithWindows: (enabled: boolean) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setStartWithWindows, enabled)
+    ipcRenderer.invoke(IPC_CHANNELS.setStartWithWindows, enabled),
+  listInstalledPrinters: () => ipcRenderer.invoke(IPC_CHANNELS.listInstalledPrinters),
+  getPrinterConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.getPrinterConfiguration),
+  getPrinterReadiness: () => ipcRenderer.invoke(IPC_CHANNELS.getPrinterReadiness),
+  selectPrinter: (systemName: string) => ipcRenderer.invoke(IPC_CHANNELS.selectPrinter, systemName),
+  clearPrinterConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.clearPrinterConfiguration)
 })
 
 contextBridge.exposeInMainWorld('notiventa', api)

@@ -157,13 +157,83 @@ persists only non-secret receipt metadata (`jobId`, `attemptId`, print type,
 shipment ID, and optional order ID) in its local settings boundary. On restart,
 it acknowledges that pending receipt before polling. If no local receipt exists,
 it asks the Device-authenticated `GET /api/v1/agent/assignment` endpoint for
-its own existing `AUTHORIZED` assignment, persists that same assignment, then
-uses the normal idempotent receipt acknowledgement. Recovery never creates a
-second PrintAttempt or redispatches a job. Receipt does not download a label or
-invoke a printer.
+its own existing `AUTHORIZED` or `RECEIVED` assignment, persists that same
+assignment when needed, then uses the normal idempotent receipt acknowledgement.
+Recovery never creates a second PrintAttempt or redispatches a job. A received
+assignment remains Device-blocking until the future physical lifecycle resolves
+it. Receipt does not download a label or invoke a printer.
 
-Not implemented: printers, label files, physical printing, print-result
-events/outbox, retry/requeue, production signing, or auto-update.
+Not implemented: real printers, label files, physical printing, print
+retry/requeue, production signing, or auto-update.
+
+PF0 now locks the contract for the future receipt-to-result lifecycle without
+implementing those components. The same backend-owned `RECEIVED` assignment
+will be orchestrated by an Electron Main `PrintCoordinator` and a
+`PrinterAdapter`; adapters will never call the backend, mutate workflow state,
+persist result events, choose retries, fetch Mercado Libre labels, or receive
+Device credentials.
+
+Fake execution is restricted to test dependency injection, unpackaged
+development composition, and immutable `local-validation` builds. Staging and
+production builds must fail closed rather than construct a fake adapter, and
+the backend will independently accept result events marked `SIMULATED` only
+when its normalized environment is `dev`, `development`, `test`, or `testing`.
+No user-facing or general runtime fake-print switch is planned.
+
+PF0 also locks restart behavior: a `RECEIVED` assignment recovers with the same
+job/attempt identity; a durable known result is resent with the same `eventId`
+before any new work; and a `PRINTING` attempt is never automatically invoked
+again after restart. Without a durable known result it remains unresolved and
+eventually becomes backend-authoritative `UNKNOWN`/`NEEDS_ATTENTION`.
+
+PF1 now provides the backend result endpoint, and PF2 provides the Agent's
+durable SQLite result outbox. Synthetic or later adapter-owned outcomes are
+saved locally before submission, retain one `eventId` across restart/retry, and
+are removed only after backend acknowledgement. A durable active-assignment
+checkpoint blocks new polling until terminal result delivery is acknowledged.
+PF3 now supplies the minimal Main-process `PrinterAdapter`, deterministic
+guarded `FakePrinterAdapter`, and `PrintCoordinator`. The coordinator maps only
+fake `SUCCESS`/`FAILURE`/`UNKNOWN` to simulated PF1/PF2 result events. It never
+emits physical `PRINTING`. PF4 now validates the fake success, failure, and
+unknown flows through the PF2 HTTP client/outbox contract and PF1's local
+PostgreSQL endpoint lifecycle, including delivery loss and restart resend.
+
+PF5 adds a read-only installed-printer discovery boundary using Electron's
+`webContents.getPrintersAsync()`. It normalizes the Windows queue name,
+display name, optional description, and default marker. A queue is only
+"available" when that exact case-insensitive Windows queue identity is present
+in the current enumeration; this does not prove hardware health or printability.
+PF5 never submits a print job or persists a user selection. PF6 owns selection
+and configuration persistence.
+
+PF6 stores one local selected Windows queue name and the fixed `SHIPPING_LABEL`
+4 × 6 inch profile in Electron settings. Restart restores that selection; a
+missing queue remains remembered but unavailable. The Agent never substitutes
+the OS default queue, persists this setting to the backend, or prints on select.
+
+PF7 derives a read-only local readiness report from that PF6 configuration and
+PF5's current queue enumeration. `READY` means only that the fixed 4 × 6
+profile is valid and the exact configured queue is currently visible to the
+Agent. It does not prove power, paper or label stock, physical connectivity,
+driver/spooler health, or a successful future print. `UNAVAILABLE` retains the
+configured queue without default fallback; malformed or absent configuration is
+`NOT_CONFIGURED`. The trusted renderer API exposes the normalized report only;
+it exposes no native print API and PF7 sends no backend readiness signal.
+
+PF7.5 adds the small local Printer settings UI over those existing trusted
+Agent APIs only. It lists normalized discovered queues, lets a user explicitly
+select or clear the already-supported local configuration, and shows the fixed
+`4 × 6 Shipping Label` profile. It remains read-only with respect to printer
+execution: `READY` means only “Configured and currently visible to NotiVenta,”
+not printer health, loaded labels, spooler health, or a guaranteed print. A
+remembered missing queue remains selected as `UNAVAILABLE`; the UI never adopts
+a default or fallback queue, sends backend state, downloads labels, or prints.
+
+PF8A generic Windows acceptance completed on 2026-10-08 with Microsoft Print
+to PDF: the real UI discovered and explicitly selected the queue, displayed
+the fixed profile and local readiness, and restored selection/readiness after
+Windows logout/login. No print command ran. This is not WHTP203e, spooler, or
+physical-printer validation; those remain deferred.
 
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP

@@ -8,6 +8,10 @@ import { registerAgentIpc } from './ipc'
 import { detectSystemName, platformIdentifier } from './platform'
 import { PACKAGED_AGENT_BUILD_CONFIG } from './packaged-config'
 import { ElectronSettingsStore } from './settings-store'
+import { SqliteResultOutbox } from './result-outbox'
+import { ElectronPrinterDiscovery } from './printers/printer-discovery'
+import { PrinterConfigurationService } from './printers/printer-configuration-service'
+import { PrinterReadinessService } from './printers/printer-readiness-service'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
@@ -49,7 +53,8 @@ app.whenReady().then(async () => {
     new NotiVentaApiClient(config),
     credentials,
     settings,
-    detectSystemName()
+    detectSystemName(),
+    new SqliteResultOutbox(join(app.getPath('userData'), 'result-outbox.sqlite'))
   )
   mainWindow = createMainWindow(join(__dirname, `../preload/${PRELOAD_OUTPUT_FILENAME}`), {
     isPackaged: app.isPackaged,
@@ -58,11 +63,21 @@ app.whenReady().then(async () => {
   mainWindow.on('close', (event) => {
     if (mainWindow) handleWindowClose(event, mainWindow, quitting)
   })
+  const printerDiscovery = new ElectronPrinterDiscovery({
+    getPrintersAsync: async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Agent window is unavailable for printer discovery.')
+      return mainWindow.webContents.getPrintersAsync()
+    }
+  })
+  const printerConfiguration = new PrinterConfigurationService(settings, printerDiscovery)
   cleanupIpc = registerAgentIpc({
     ipcMain,
     controller,
     settings,
     startup,
+    printerDiscovery,
+    printerConfiguration,
+    printerReadiness: new PrinterReadinessService(printerConfiguration),
     getWindow: () => mainWindow
   })
   tray = createAgentTray({

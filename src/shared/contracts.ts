@@ -37,6 +37,52 @@ export interface ReceivedPrintJob {
   orderId: string | null
 }
 
+export interface DiscoveredPrinter {
+  systemName: string
+  displayName: string
+  description: string | null
+  isDefault: boolean
+  available: boolean
+}
+
+export type PrinterDiscoveryResult = {
+  printers: DiscoveredPrinter[]
+  error: 'PRINTER_DISCOVERY_UNAVAILABLE' | null
+}
+
+export interface PrinterConfiguration {
+  systemName: string
+  profile: {
+    printType: 'SHIPPING_LABEL'
+    width: 4
+    height: 6
+    unit: 'INCH'
+  }
+}
+
+export interface PrinterConfigurationStatus {
+  configured: boolean
+  configuration: PrinterConfiguration | null
+  available: boolean
+  discoveredPrinter: DiscoveredPrinter | null
+  error: 'PRINTER_CONFIGURATION_INVALID' | 'PRINTER_DISCOVERY_UNAVAILABLE' | null
+}
+
+export type PrinterReadinessState = 'NOT_CONFIGURED' | 'UNAVAILABLE' | 'READY'
+
+export interface PrinterReadiness {
+  state: PrinterReadinessState
+  ready: boolean
+  reason:
+    | 'NO_PRINTER_CONFIGURATION'
+    | 'PRINTER_CONFIGURATION_INVALID'
+    | 'PRINTER_DISCOVERY_UNAVAILABLE'
+    | 'CONFIGURED_PRINTER_UNAVAILABLE'
+    | null
+  configuration: PrinterConfiguration | null
+  discoveredPrinter: DiscoveredPrinter | null
+}
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -52,6 +98,11 @@ export interface AgentRendererApi {
   subscribeToState(listener: (state: AgentState) => void): () => void
   getStartWithWindows(): Promise<boolean>
   setStartWithWindows(enabled: boolean): Promise<boolean>
+  listInstalledPrinters(): Promise<PrinterDiscoveryResult>
+  getPrinterConfiguration(): Promise<PrinterConfigurationStatus>
+  getPrinterReadiness(): Promise<PrinterReadiness>
+  selectPrinter(systemName: string): Promise<PrinterConfigurationStatus>
+  clearPrinterConfiguration(): Promise<PrinterConfigurationStatus>
 }
 
 export const IPC_CHANNELS = {
@@ -59,5 +110,10 @@ export const IPC_CHANNELS = {
   pairDevice: 'agent:pair-device',
   stateChanged: 'agent:state-changed',
   getStartWithWindows: 'agent:get-start-with-windows',
-  setStartWithWindows: 'agent:set-start-with-windows'
+  setStartWithWindows: 'agent:set-start-with-windows',
+  listInstalledPrinters: 'agent:list-installed-printers',
+  getPrinterConfiguration: 'agent:get-printer-configuration',
+  getPrinterReadiness: 'agent:get-printer-readiness',
+  selectPrinter: 'agent:select-printer',
+  clearPrinterConfiguration: 'agent:clear-printer-configuration'
 } as const

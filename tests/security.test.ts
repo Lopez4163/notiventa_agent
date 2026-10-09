@@ -5,9 +5,10 @@ import { IPC_CHANNELS } from '../src/shared/contracts'
 import { PRELOAD_OUTPUT_FILENAME } from '../src/shared/build-artifacts'
 
 describe('Electron security boundary', () => {
-  it('exposes only the intended Phase 4 IPC channels', () => {
+  it('exposes only the intended Agent IPC channels', () => {
     expect(Object.keys(IPC_CHANNELS).sort()).toEqual([
-      'getStartWithWindows', 'getState', 'pairDevice', 'setStartWithWindows', 'stateChanged'
+      'clearPrinterConfiguration', 'getPrinterConfiguration', 'getPrinterReadiness', 'getStartWithWindows', 'getState',
+      'listInstalledPrinters', 'pairDevice', 'selectPrinter', 'setStartWithWindows', 'stateChanged'
     ])
   })
 
