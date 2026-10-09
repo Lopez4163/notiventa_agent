@@ -6,6 +6,7 @@ import type { SettingsStore } from './settings-store'
 import type { StartupService } from './startup-service'
 import type { PrinterDiscovery } from './printers/printer-discovery'
 import type { PrinterConfigurationService } from './printers/printer-configuration-service'
+import type { PrinterReadinessService } from './printers/printer-readiness-service'
 
 export function registerAgentIpc(options: {
   ipcMain: IpcMain
@@ -14,9 +15,10 @@ export function registerAgentIpc(options: {
   startup: StartupService
   printerDiscovery: PrinterDiscovery
   printerConfiguration: PrinterConfigurationService
+  printerReadiness: PrinterReadinessService
   getWindow: () => BrowserWindow | null
 }): () => void {
-  const { ipcMain, controller, settings, startup, printerDiscovery, printerConfiguration, getWindow } = options
+  const { ipcMain, controller, settings, startup, printerDiscovery, printerConfiguration, printerReadiness, getWindow } = options
   const assertTrustedSender = (event: IpcMainInvokeEvent): void => {
     const window = getWindow()
     if (!window || event.sender.id !== window.webContents.id) {
@@ -51,6 +53,10 @@ export function registerAgentIpc(options: {
     assertTrustedSender(event)
     return printerConfiguration.getStatus()
   })
+  ipcMain.handle(IPC_CHANNELS.getPrinterReadiness, async (event) => {
+    assertTrustedSender(event)
+    return printerReadiness.getReadiness()
+  })
   ipcMain.handle(IPC_CHANNELS.selectPrinter, async (event, systemName: unknown) => {
     assertTrustedSender(event)
     return printerConfiguration.select(typeof systemName === 'string' ? systemName : '')
@@ -76,6 +82,7 @@ export function registerAgentIpc(options: {
       IPC_CHANNELS.setStartWithWindows,
       IPC_CHANNELS.listInstalledPrinters,
       IPC_CHANNELS.getPrinterConfiguration,
+      IPC_CHANNELS.getPrinterReadiness,
       IPC_CHANNELS.selectPrinter,
       IPC_CHANNELS.clearPrinterConfiguration
     ]) {

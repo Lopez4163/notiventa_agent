@@ -15,6 +15,7 @@ const api: AgentRendererApi = Object.freeze({
     ipcRenderer.invoke(IPC_CHANNELS.setStartWithWindows, enabled),
   listInstalledPrinters: () => ipcRenderer.invoke(IPC_CHANNELS.listInstalledPrinters),
   getPrinterConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.getPrinterConfiguration),
+  getPrinterReadiness: () => ipcRenderer.invoke(IPC_CHANNELS.getPrinterReadiness),
   selectPrinter: (systemName: string) => ipcRenderer.invoke(IPC_CHANNELS.selectPrinter, systemName),
   clearPrinterConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.clearPrinterConfiguration)
 })

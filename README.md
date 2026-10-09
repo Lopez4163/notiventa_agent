@@ -211,6 +211,15 @@ PF6 stores one local selected Windows queue name and the fixed `SHIPPING_LABEL`
 missing queue remains remembered but unavailable. The Agent never substitutes
 the OS default queue, persists this setting to the backend, or prints on select.
 
+PF7 derives a read-only local readiness report from that PF6 configuration and
+PF5's current queue enumeration. `READY` means only that the fixed 4 × 6
+profile is valid and the exact configured queue is currently visible to the
+Agent. It does not prove power, paper or label stock, physical connectivity,
+driver/spooler health, or a successful future print. `UNAVAILABLE` retains the
+configured queue without default fallback; malformed or absent configuration is
+`NOT_CONFIGURED`. The trusted renderer API exposes the normalized report only;
+it exposes no native print API and PF7 sends no backend readiness signal.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,

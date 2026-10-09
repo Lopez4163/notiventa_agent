@@ -11,6 +11,7 @@ import { ElectronSettingsStore } from './settings-store'
 import { SqliteResultOutbox } from './result-outbox'
 import { ElectronPrinterDiscovery } from './printers/printer-discovery'
 import { PrinterConfigurationService } from './printers/printer-configuration-service'
+import { PrinterReadinessService } from './printers/printer-readiness-service'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
@@ -68,13 +69,15 @@ app.whenReady().then(async () => {
       return mainWindow.webContents.getPrintersAsync()
     }
   })
+  const printerConfiguration = new PrinterConfigurationService(settings, printerDiscovery)
   cleanupIpc = registerAgentIpc({
     ipcMain,
     controller,
     settings,
     startup,
     printerDiscovery,
-    printerConfiguration: new PrinterConfigurationService(settings, printerDiscovery),
+    printerConfiguration,
+    printerReadiness: new PrinterReadinessService(printerConfiguration),
     getWindow: () => mainWindow
   })
   tray = createAgentTray({
