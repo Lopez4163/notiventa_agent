@@ -163,6 +163,18 @@ Recovery never creates a second PrintAttempt or redispatches a job. A received
 assignment remains Device-blocking until the future physical lifecycle resolves
 it. Receipt does not download a label or invoke a printer.
 
+### Pending-assignment status display
+
+The renderer's Mercado Libre and queue-health values come from the latest
+successful Agent poll. When the Agent restores a durable `AUTHORIZED` or
+`RECEIVED` assignment, it deliberately stops polling so it cannot claim another
+job while the existing assignment is held. In that state the current renderer
+may display Mercado Libre as `Unknown` because no fresh backend operational
+state is present. `Unknown` in this situation means **not freshly checked while
+an assignment is pending**; it does not mean the seller's Mercado Libre account
+is disconnected. Do not re-pair, restart to force a poll, or alter the held
+assignment merely to refresh that display.
+
 Not implemented: real printers, label files, physical printing, print
 retry/requeue, production signing, or auto-update.
 
