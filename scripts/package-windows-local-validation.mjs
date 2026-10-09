@@ -2,11 +2,12 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+const supportedArchitectures = new Set(['x64', 'arm64'])
 const architecture = process.argv[2]
 const localValidationBackendUrl = 'http://192.168.64.1:8000'
 
-if (architecture !== 'arm64') {
-  fail('The local Windows VM validation package supports ARM64 only.')
+if (!supportedArchitectures.has(architecture)) {
+  fail('Choose exactly one supported Windows architecture: x64 or arm64.')
 }
 if (process.platform !== 'win32') {
   fail('Local Windows VM validation packages must be built from Windows.')
@@ -39,7 +40,7 @@ const buildEnvironment = {
 run('npm.cmd', ['run', 'build'], buildEnvironment)
 run(
   resolve('node_modules', '.bin', 'electron-builder.cmd'),
-  ['--config', 'electron-builder.local-validation.yml', '--win', 'nsis', '--arm64'],
+  ['--config', 'electron-builder.local-validation.yml', '--win', 'nsis', `--${architecture}`],
   buildEnvironment
 )
 

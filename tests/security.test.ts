@@ -8,7 +8,7 @@ describe('Electron security boundary', () => {
   it('exposes only the intended Agent IPC channels', () => {
     expect(Object.keys(IPC_CHANNELS).sort()).toEqual([
       'clearPrinterConfiguration', 'getPrinterConfiguration', 'getPrinterReadiness', 'getStartWithWindows', 'getState',
-      'listInstalledPrinters', 'pairDevice', 'selectPrinter', 'setStartWithWindows', 'stateChanged'
+      'listInstalledPrinters', 'pairDevice', 'printTestLabel', 'selectPrinter', 'setStartWithWindows', 'stateChanged'
     ])
   })
 
@@ -17,6 +17,8 @@ describe('Electron security boundary', () => {
     expect(source).not.toContain('deviceCredential')
     expect(source).not.toContain('invoke(channel')
     expect(source).not.toContain('require(')
+    expect(source).toContain('printTestLabel: () => ipcRenderer.invoke(IPC_CHANNELS.printTestLabel)')
+    expect(source).not.toMatch(/printTestLabel:\s*\([^)]/)
   })
 
   it('locks down BrowserWindow web preferences and navigation', () => {

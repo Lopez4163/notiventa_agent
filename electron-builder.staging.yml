@@ -9,6 +9,10 @@ files:
   - out/**/*
   - package.json
 
+extraResources:
+  - from: resources/diagnostic-label.html
+    to: diagnostic/diagnostic-label.html
+
 asar: true
 asarUnpack:
   - node_modules/@napi-rs/keyring*/**/*.node

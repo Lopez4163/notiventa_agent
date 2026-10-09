@@ -83,6 +83,29 @@ export interface PrinterReadiness {
   discoveredPrinter: DiscoveredPrinter | null
 }
 
+export type DiagnosticPrintResult =
+  | {
+      status: 'SUBMITTED'
+      code: 'SUBMITTED_TO_WINDOWS'
+      message: 'Submitted to Windows. Verify that the label printed correctly.'
+    }
+  | {
+      status: 'FAILED'
+      code:
+        | 'PRINT_ALREADY_IN_PROGRESS'
+        | 'PRINT_DOCUMENT_INVALID'
+        | 'WINDOWS_PRINTING_UNAVAILABLE'
+        | 'PRINTER_NOT_READY'
+        | 'PRINT_RENDER_FAILED'
+        | 'WINDOWS_PRINT_REJECTED'
+      message: string
+    }
+  | {
+      status: 'INDETERMINATE'
+      code: 'WINDOWS_PRINT_SUBMISSION_TIMEOUT'
+      message: 'Windows did not confirm whether the print request was submitted. Do not retry automatically.'
+    }
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -103,6 +126,7 @@ export interface AgentRendererApi {
   getPrinterReadiness(): Promise<PrinterReadiness>
   selectPrinter(systemName: string): Promise<PrinterConfigurationStatus>
   clearPrinterConfiguration(): Promise<PrinterConfigurationStatus>
+  printTestLabel(): Promise<DiagnosticPrintResult>
 }
 
 export const IPC_CHANNELS = {
@@ -115,5 +139,6 @@ export const IPC_CHANNELS = {
   getPrinterConfiguration: 'agent:get-printer-configuration',
   getPrinterReadiness: 'agent:get-printer-readiness',
   selectPrinter: 'agent:select-printer',
-  clearPrinterConfiguration: 'agent:clear-printer-configuration'
+  clearPrinterConfiguration: 'agent:clear-printer-configuration',
+  printTestLabel: 'agent:print-test-label'
 } as const

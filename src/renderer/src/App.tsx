@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
-import type { AgentState, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness } from '../../shared/contracts'
+import { FormEvent, useEffect, useRef, useState } from 'react'
+import type { AgentState, DiagnosticPrintResult, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness } from '../../shared/contracts'
 
 interface PrinterData {
   discovery: PrinterDiscoveryResult
@@ -22,6 +22,9 @@ export function App(): React.JSX.Element {
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
   const [candidate, setCandidate] = useState<string | null>(null)
+  const [testPrintPending, setTestPrintPending] = useState(false)
+  const [testPrintResult, setTestPrintResult] = useState<DiagnosticPrintResult | null>(null)
+  const testPrintInProgress = useRef(false)
 
   useEffect(() => {
     void window.notiventa.getState().then(setState)
@@ -109,6 +112,25 @@ export function App(): React.JSX.Element {
     }
   }
 
+  async function printTestLabel(): Promise<void> {
+    if (testPrintInProgress.current) return
+    testPrintInProgress.current = true
+    setTestPrintPending(true)
+    setTestPrintResult(null)
+    try {
+      setTestPrintResult(await window.notiventa.printTestLabel())
+    } catch {
+      setTestPrintResult({
+        status: 'FAILED',
+        code: 'WINDOWS_PRINT_REJECTED',
+        message: 'NotiVenta could not submit the test label. Check the selected printer and try again.'
+      })
+    } finally {
+      testPrintInProgress.current = false
+      setTestPrintPending(false)
+    }
+  }
+
   if (!state) return <main className="shell"><p>Starting NotiVenta…</p></main>
 
   if (state.lifecycle === 'needs-pairing') {
@@ -190,6 +212,9 @@ export function App(): React.JSX.Element {
         action={printerAction}
         onChoose={() => void openPrinterSelection()}
         onClear={() => setClearDialogOpen(true)}
+        testPrintPending={testPrintPending}
+        testPrintResult={testPrintResult}
+        onTestPrint={() => void printTestLabel()}
       />
       {selectionDialogOpen && (
         <PrinterSelectionDialog
@@ -223,9 +248,12 @@ interface PrinterSettingsProps {
   action: string | null
   onChoose(): void
   onClear(): void
+  testPrintPending: boolean
+  testPrintResult: DiagnosticPrintResult | null
+  onTestPrint(): void
 }
 
-function PrinterSettings({ data, loading, error, action, onChoose, onClear }: PrinterSettingsProps): React.JSX.Element {
+function PrinterSettings({ data, loading, error, action, onChoose, onClear, testPrintPending, testPrintResult, onTestPrint }: PrinterSettingsProps): React.JSX.Element {
   if (loading && !data) {
     return <section className="printer-section" aria-labelledby="printer-heading"><h2 id="printer-heading">Printer</h2><p>Loading printer settings…</p></section>
   }
@@ -262,7 +290,22 @@ function PrinterSettings({ data, loading, error, action, onChoose, onClear }: Pr
       <div className="printer-actions">
         <button type="button" className="secondary" onClick={onChoose} disabled={loading}>{selectedName ? 'Change Printer' : 'Choose Printer'}</button>
         {selectedName && <button type="button" className="secondary" onClick={onClear} disabled={action === 'clear'}>Clear</button>}
+        <button
+          type="button"
+          onClick={onTestPrint}
+          disabled={readiness.state !== 'READY' || testPrintPending || loading || action !== null}
+        >
+          {testPrintPending ? 'Submitting Test Label…' : 'Print Test Label'}
+        </button>
       </div>
+      {testPrintResult && (
+        <p
+          role={testPrintResult.status === 'FAILED' ? 'alert' : 'status'}
+          className={testPrintResult.status === 'FAILED' ? 'error' : 'notice'}
+        >
+          {testPrintOutcomeMessage(testPrintResult)}
+        </p>
+      )}
     </section>
   )
 }
@@ -336,4 +379,10 @@ function readinessMessage(state: PrinterReadiness['state'], discoveryUnavailable
 
 function sameQueue(left: string, right: string | null): boolean {
   return right !== null && left.toLocaleLowerCase('en-US') === right.toLocaleLowerCase('en-US')
+}
+
+function testPrintOutcomeMessage(result: DiagnosticPrintResult): string {
+  if (result.status === 'SUBMITTED') return 'Submitted to Windows — verify the physical label.'
+  if (result.status === 'INDETERMINATE') return 'Submission uncertain — do not retry without checking the printer.'
+  return result.message
 }

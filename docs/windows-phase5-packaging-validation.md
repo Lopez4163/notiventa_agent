@@ -43,32 +43,35 @@ It asks for **Staging** or **Local VM validation**, checks out and fast-forwards
 the matching branch, runs `npm ci` and Agent tests, invokes the existing
 architecture-matched package command, and asks before starting the installer.
 Staging embeds `https://notiventabe-staging.up.railway.app`; local validation
-is ARM64-only and uses its existing fixed local backend. The helper stops when
+supports matching x64 and ARM64 Windows/Node installations and uses its
+existing fixed local backend. The helper stops when
 the checkout has local changes rather than resetting, stashing, or overwriting
 them.
 
-## ARM64 local-VM validation package
+## Local-validation package
 
 Phase 5.4 needs an installed packaged Agent to validate Windows login startup.
-For the local ARM64 VM only, build the explicitly named local-validation
-package. It embeds `http://192.168.64.1:8000` and a `local-validation` package
-environment; it is not staging or production and must never be distributed as
-either.
+Build the explicitly named local-validation package using matching Windows and
+Node architecture. It embeds `http://192.168.64.1:8000` and a
+`local-validation` package environment; it is not staging or production and
+must never be distributed as either.
 
-From a clean Agent checkout in the ARM64 Windows VM with ARM64 Node/npm:
+From a clean Windows checkout with matching x64 or ARM64 Node/npm:
 
 ```powershell
 node -p "process.platform + ' ' + process.arch"
 npm ci
 npm test
 npm run typecheck
+npm run package:local-validation:win:x64
+# or
 npm run package:local-validation:win:arm64
 ```
 
 The installer is written to:
 
 ```text
-dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe
+dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-<arch>.exe
 ```
 
 The local-validation command does not accept a backend URL environment
