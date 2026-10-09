@@ -229,6 +229,12 @@ not printer health, loaded labels, spooler health, or a guaranteed print. A
 remembered missing queue remains selected as `UNAVAILABLE`; the UI never adopts
 a default or fallback queue, sends backend state, downloads labels, or prints.
 
+PF8A generic Windows acceptance completed on 2026-10-08 with Microsoft Print
+to PDF: the real UI discovered and explicitly selected the queue, displayed
+the fixed profile and local readiness, and restored selection/readiness after
+Windows logout/login. No print command ran. This is not WHTP203e, spooler, or
+physical-printer validation; those remain deferred.
+
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
 credential lifecycle: secure write, complete-exit restore, revocation deletion,
