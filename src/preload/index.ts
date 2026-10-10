@@ -18,7 +18,10 @@ const api: AgentRendererApi = Object.freeze({
   getPrinterReadiness: () => ipcRenderer.invoke(IPC_CHANNELS.getPrinterReadiness),
   selectPrinter: (systemName: string) => ipcRenderer.invoke(IPC_CHANNELS.selectPrinter, systemName),
   clearPrinterConfiguration: () => ipcRenderer.invoke(IPC_CHANNELS.clearPrinterConfiguration),
-  printTestLabel: () => ipcRenderer.invoke(IPC_CHANNELS.printTestLabel)
+  printTestLabel: () => ipcRenderer.invoke(IPC_CHANNELS.printTestLabel),
+  submitShippingLabel: () => ipcRenderer.invoke(IPC_CHANNELS.submitShippingLabel),
+  confirmShippingLabelPrinted: () => ipcRenderer.invoke(IPC_CHANNELS.confirmShippingLabelPrinted),
+  reportShippingLabelPrintFailure: () => ipcRenderer.invoke(IPC_CHANNELS.reportShippingLabelPrintFailure)
 })
 
 contextBridge.exposeInMainWorld('notiventa', api)

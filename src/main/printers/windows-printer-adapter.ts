@@ -28,6 +28,12 @@ export const WINDOWS_PRINT_OPTIONS = {
 export interface WindowsPrintRequest {
   /** An Agent-owned local document. Renderer input must never be passed here directly. */
   documentPath: string
+  /**
+   * Optional caller-held identity. Physical label work uses this to ensure a
+   * configuration change between operator authorization and submission cannot
+   * silently redirect a label to another queue.
+   */
+  expectedPrinterSystemName?: string
 }
 
 export type WindowsPrintSubmissionResult = DiagnosticPrintResult
@@ -126,6 +132,12 @@ export class WindowsPrinterAdapter {
         systemName.length === 0
       ) {
         return failed('PRINTER_NOT_READY', 'The selected printer is not currently ready in NotiVenta.')
+      }
+      if (
+        request.expectedPrinterSystemName !== undefined &&
+        request.expectedPrinterSystemName !== systemName
+      ) {
+        return failed('PRINTER_NOT_READY', 'The selected printer changed before Windows submission.')
       }
 
       return await submitToWindows(

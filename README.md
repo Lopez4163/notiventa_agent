@@ -178,11 +178,12 @@ an assignment is pending**; it does not mean the seller's Mercado Libre account
 is disconnected. Do not re-pair, restart to force a poll, or alter the held
 assignment merely to refresh that display.
 
-Not implemented: Mercado Libre shipping-label retrieval, real-label lifecycle
-coordination, automatic printing, print retry/requeue, production signing, or
-auto-update. P0 adds one explicit, Agent-local diagnostic submission path only;
-Windows acceptance is not evidence of physical output and it never creates or
-changes a PrintJob, PrintAttempt, or AgentEvent.
+Released builds do not yet include Mercado Libre shipping-label retrieval or
+real-label lifecycle coordination. Those P1 changes currently exist only as
+local, uncheckpointed work and are not deployed. Automatic printing, print
+retry/requeue, production signing, and auto-update remain unimplemented. P0
+adds one explicit, Agent-local diagnostic submission path only; it never
+creates or changes a PrintJob, PrintAttempt, or AgentEvent.
 
 PF0 now locks the contract for the future receipt-to-result lifecycle without
 implementing those components. The same backend-owned `RECEIVED` assignment
@@ -253,14 +254,21 @@ the fixed profile and local readiness, and restored selection/readiness after
 Windows logout/login. No print command ran. This is not WHTP203e, spooler, or
 physical-printer validation; those remain deferred.
 
-P0 diagnostic printing is prepared for supervised Windows hardware acceptance:
-the Agent owns a bundled 4 × 6 diagnostic HTML document, resolves it from the
+P0 diagnostic printing was physically exercised once on 2026-10-09 with a
+Westinghouse WHTP203e on a real Windows x64 computer. The Agent discovered the
+explicitly selected queue, reported local `READY`, and Windows produced one
+physical diagnostic label. This proves one local submission/output path only.
+The measured 4 × 6 geometry/alignment and restart-persistence acceptance remain
+open; Windows acceptance is never proof of spooler health or a successful
+future shipping label.
+
+The diagnostic feature owns a bundled 4 × 6 HTML document, resolves it from the
 installed resources directory, targets only the explicitly selected queue with
 fixed one-copy/no-margin settings, and exposes one trusted `Print Test Label`
 action when local readiness is `READY`. Its result means only submitted to
 Windows, failed, or indeterminate; it never claims physical output. Matching
-x64 and ARM64 local-validation installers include the diagnostic asset. The
-installer and WHTP203e physical acceptance remain manual Windows steps.
+x64 and ARM64 local-validation installers include the diagnostic asset.
+WHTP203e calibration and restart acceptance remain manual Windows steps.
 
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP

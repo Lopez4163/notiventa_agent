@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import type { AgentState, DiagnosticPrintResult, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness } from '../../shared/contracts'
+import type { AgentState, DiagnosticPrintResult, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness, ShippingLabelPrintResult } from '../../shared/contracts'
 
 interface PrinterData {
   discovery: PrinterDiscoveryResult
@@ -24,7 +24,11 @@ export function App(): React.JSX.Element {
   const [candidate, setCandidate] = useState<string | null>(null)
   const [testPrintPending, setTestPrintPending] = useState(false)
   const [testPrintResult, setTestPrintResult] = useState<DiagnosticPrintResult | null>(null)
+  const [shippingPrintDialogOpen, setShippingPrintDialogOpen] = useState(false)
+  const [shippingPrintPending, setShippingPrintPending] = useState(false)
+  const [shippingPrintResult, setShippingPrintResult] = useState<ShippingLabelPrintResult | null>(null)
   const testPrintInProgress = useRef(false)
+  const shippingPrintInProgress = useRef(false)
 
   useEffect(() => {
     void window.notiventa.getState().then(setState)
@@ -131,6 +135,36 @@ export function App(): React.JSX.Element {
     }
   }
 
+  async function submitShippingLabel(): Promise<void> {
+    if (shippingPrintInProgress.current) return
+    shippingPrintInProgress.current = true
+    setShippingPrintPending(true)
+    setShippingPrintResult(null)
+    try {
+      const result = await window.notiventa.submitShippingLabel()
+      setShippingPrintResult(result)
+      setShippingPrintDialogOpen(result.status === 'AWAITING_CONFIRMATION')
+    } catch {
+      setShippingPrintResult({ status: 'BLOCKED', code: 'SUBMISSION_UNAVAILABLE', message: 'NotiVenta could not begin the shipping-label print safely. Nothing was submitted to Windows.' })
+      setShippingPrintDialogOpen(false)
+    } finally {
+      shippingPrintInProgress.current = false
+      setShippingPrintPending(false)
+    }
+  }
+
+  async function confirmShippingLabelPrinted(): Promise<void> {
+    const result = await window.notiventa.confirmShippingLabelPrinted()
+    setShippingPrintResult(result)
+    if (result.status !== 'BLOCKED') setShippingPrintDialogOpen(false)
+  }
+
+  async function reportShippingLabelPrintFailure(): Promise<void> {
+    const result = await window.notiventa.reportShippingLabelPrintFailure()
+    setShippingPrintResult(result)
+    if (result.status !== 'BLOCKED') setShippingPrintDialogOpen(false)
+  }
+
   if (!state) return <main className="shell"><p>Starting NotiVenta…</p></main>
 
   if (state.lifecycle === 'needs-pairing') {
@@ -216,6 +250,25 @@ export function App(): React.JSX.Element {
         testPrintResult={testPrintResult}
         onTestPrint={() => void printTestLabel()}
       />
+      {state.receivedJob && printerData?.readiness.state === 'READY' && (
+        <section className="printer-section" aria-labelledby="shipping-label-heading">
+          <div className="section-heading"><h2 id="shipping-label-heading">Current shipping label</h2></div>
+          <p>Shipment #{state.receivedJob.shipmentId}</p>
+          <p className="hint">A physical print requires your confirmation. Windows acceptance does not confirm that the label printed.</p>
+          <button
+            type="button"
+            onClick={() => { setShippingPrintResult(null); setShippingPrintDialogOpen(true) }}
+            disabled={shippingPrintPending}
+          >
+            Print Shipping Label
+          </button>
+          {shippingPrintResult && !shippingPrintDialogOpen && (
+            <p role={shippingPrintResult.status === 'BLOCKED' ? 'alert' : 'status'} className={shippingPrintResult.status === 'BLOCKED' ? 'error' : 'notice'}>
+              {shippingPrintResult.message}
+            </p>
+          )}
+        </section>
+      )}
       {selectionDialogOpen && (
         <PrinterSelectionDialog
           discovery={dialogDiscovery}
@@ -235,6 +288,17 @@ export function App(): React.JSX.Element {
           clearing={printerAction === 'clear'}
           onCancel={() => setClearDialogOpen(false)}
           onConfirm={() => void clearPrinter()}
+        />
+      )}
+      {shippingPrintDialogOpen && (
+        <ShippingLabelConfirmationDialog
+          pending={shippingPrintPending}
+          awaitingPhysicalConfirmation={shippingPrintResult?.status === 'AWAITING_CONFIRMATION'}
+          result={shippingPrintResult}
+          onCancel={() => !shippingPrintPending && setShippingPrintDialogOpen(false)}
+          onSubmit={() => void submitShippingLabel()}
+          onConfirmPrinted={() => void confirmShippingLabelPrinted()}
+          onReportFailure={() => void reportShippingLabelPrintFailure()}
         />
       )}
     </main>
@@ -353,6 +417,46 @@ function PrinterSelectionDialog({ discovery, loading, error, selectedName, candi
 
 function ClearPrinterDialog({ clearing, onCancel, onConfirm }: { clearing: boolean, onCancel(): void, onConfirm(): void }): React.JSX.Element {
   return <div className="dialog-backdrop" role="presentation"><section className="dialog" role="dialog" aria-modal="true" aria-labelledby="clear-printer-title"><h2 id="clear-printer-title">Clear selected printer?</h2><p>NotiVenta will stop considering this Agent printer-ready until another printer is selected.</p><div className="dialog-actions"><button type="button" className="secondary" onClick={onCancel} disabled={clearing}>Cancel</button><button type="button" onClick={onConfirm} disabled={clearing}>{clearing ? 'Clearing…' : 'Clear Printer'}</button></div></section></div>
+}
+
+function ShippingLabelConfirmationDialog({
+  pending, awaitingPhysicalConfirmation, result, onCancel, onSubmit, onConfirmPrinted, onReportFailure
+}: {
+  pending: boolean
+  awaitingPhysicalConfirmation: boolean
+  result: ShippingLabelPrintResult | null
+  onCancel(): void
+  onSubmit(): void
+  onConfirmPrinted(): void
+  onReportFailure(): void
+}): React.JSX.Element {
+  if (awaitingPhysicalConfirmation) {
+    return (
+      <div className="dialog-backdrop" role="presentation">
+        <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="physical-print-title">
+          <h2 id="physical-print-title">Did the physical label print correctly?</h2>
+          <p>Windows accepted the request, but only you can confirm the physical result.</p>
+          <div className="dialog-actions">
+            <button type="button" className="secondary" onClick={onReportFailure}>Report Print Failure</button>
+            <button type="button" onClick={onConfirmPrinted}>Confirm Printed</button>
+          </div>
+        </section>
+      </div>
+    )
+  }
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="submit-shipping-label-title">
+        <h2 id="submit-shipping-label-title">Print shipping label?</h2>
+        <p>This submits the current shipping label to the selected Windows printer. Confirm the printer and label stock before continuing.</p>
+        {result && <p role="alert" className="error">{result.message}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="secondary" onClick={onCancel} disabled={pending}>Cancel</button>
+          <button type="button" onClick={onSubmit} disabled={pending}>{pending ? 'Preparing…' : 'Submit to Windows'}</button>
+        </div>
+      </section>
+    </div>
+  )
 }
 
 function Status(props: { label: string; value: string; tone?: 'good' | 'warn' }): React.JSX.Element {

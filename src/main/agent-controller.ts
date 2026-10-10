@@ -29,6 +29,13 @@ export interface RecordPrintResultInput {
   errorMessage?: string | null
 }
 
+/**
+ * Persists a result using the normal outbox, then waits for the backend to
+ * acknowledge this exact event. Physical execution uses this only for PRINTING
+ * so it never crosses the Windows boundary on a merely local write.
+ */
+export interface AwaitPrintResultAcknowledgementInput extends RecordPrintResultInput {}
+
 export class AgentController {
   private readonly events = new EventEmitter()
   private readonly scheduler: PollScheduler
@@ -187,19 +194,41 @@ export class AgentController {
   }
 
   recordPrintResult(input: RecordPrintResultInput): boolean {
+    const event = this.persistPrintResult(input)
+    if (!event) return false
+    void this.flushResultOutbox()
+    return true
+  }
+
+  async recordPrintResultAndAwaitAcknowledgement(
+    input: AwaitPrintResultAcknowledgementInput
+  ): Promise<boolean> {
+    const event = this.persistPrintResult(input)
+    if (!event) return false
+    await this.flushResultOutbox()
+    const pending = this.resultOutbox.getPendingEvents()
+    if (pending.kind === 'invalid') {
+      this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
+      return false
+    }
+    return !pending.events.some((pendingEvent) => pendingEvent.eventId === event.eventId)
+  }
+
+  private persistPrintResult(input: RecordPrintResultInput): PendingResultEvent | null {
     const active = this.settings.getActiveAssignment()
     if (active.kind !== 'valid' || active.assignment.job.jobId !== input.jobId || active.assignment.job.attemptId !== input.attemptId) {
       this.holdForInvalidLocalState('A print result does not match the active job. NotiVenta will not request more work.')
-      return false
+      return null
     }
     const existing = this.resultOutbox.getPendingEvents()
     if (existing.kind === 'invalid') {
       this.holdForInvalidLocalState('Saved print-result delivery data is invalid. NotiVenta will not request more work.')
-      return false
+      return null
     }
-    if (existing.events.some((event) => event.attemptId === input.attemptId && event.type === input.type)) {
+    const existingEvent = existing.events.find((event) => event.attemptId === input.attemptId && event.type === input.type)
+    if (existingEvent) {
       console.info(`[result-outbox] Existing ${input.type} result retained for attempt ${input.attemptId}.`)
-      return true
+      return existingEvent
     }
     const now = new Date().toISOString()
     const event: PendingResultEvent = {
@@ -218,11 +247,10 @@ export class AgentController {
       this.resultOutbox.add(event)
     } catch {
       this.holdForInvalidLocalState('Print result could not be saved safely. NotiVenta will not request more work.')
-      return false
+      return null
     }
     console.info(`[result-outbox] Created ${event.eventId} for job ${event.jobId}.`)
-    void this.flushResultOutbox()
-    return true
+    return event
   }
 
   async executeActiveAssignment(coordinator: PrintCoordinator): Promise<boolean> {

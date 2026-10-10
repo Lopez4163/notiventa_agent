@@ -126,6 +126,20 @@ describe('WindowsPrinterAdapter', () => {
     expect(destroy).toHaveBeenCalledOnce()
   })
 
+  it('refuses a submission when the selected exact queue changed after authorization', async () => {
+    const { adapter, print, destroy } = harness()
+    await expect(adapter.print({
+      documentPath,
+      expectedPrinterSystemName: 'WHTP203e Previous Queue'
+    })).resolves.toEqual({
+      status: 'FAILED',
+      code: 'PRINTER_NOT_READY',
+      message: 'The selected printer changed before Windows submission.'
+    })
+    expect(print).not.toHaveBeenCalled()
+    expect(destroy).toHaveBeenCalledOnce()
+  })
+
   it('prevents concurrent submissions without creating another window', async () => {
     let completePrint: ((success: boolean, failureReason: string) => void) | undefined
     const { adapter, createWindow } = harness({

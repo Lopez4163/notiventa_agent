@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DefinitiveDeviceAuthenticationError, NotiVentaApiClient } from '../src/main/api-client'
+import {
+  DefinitiveDeviceAuthenticationError,
+  MAX_SHIPPING_LABEL_BYTES,
+  NotiVentaApiClient
+} from '../src/main/api-client'
 
 const config = {
   backendUrl: new URL('https://dev.example.test'),
@@ -89,6 +93,125 @@ describe('NotiVenta API client', () => {
     expect(String(url)).toBe('https://dev.example.test/api/v1/agent/assignment')
     expect(init?.method).toBe('GET')
     expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer device-secret')
+  })
+
+  it('downloads an authenticated shipping-label PDF for the exact attempt', async () => {
+    const pdf = new TextEncoder().encode('%PDF-1.7\nlabel')
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(pdf, {
+      status: 200,
+      headers: { 'Content-Type': 'application/pdf; charset=binary' }
+    }))
+
+    const result = await new NotiVentaApiClient(config, request).downloadAttemptLabel(
+      'device-secret',
+      '22222222-2222-4222-8222-222222222222'
+    )
+
+    const [url, init] = request.mock.calls[0]
+    expect(String(url)).toBe('https://dev.example.test/api/v1/agent/attempts/22222222-2222-4222-8222-222222222222/label')
+    expect(init?.method).toBe('GET')
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer device-secret')
+    expect(result).toEqual(pdf)
+  })
+
+  it('rejects a non-PDF content type and cancels its body', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => undefined,
+      cancel
+    })
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' }
+    }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({ code: 'SHIPPING_LABEL_INVALID_CONTENT_TYPE', temporary: false })
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('rejects bytes without the PDF signature', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response('not a pdf', {
+      status: 200,
+      headers: { 'Content-Type': 'application/pdf' }
+    }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({ code: 'SHIPPING_LABEL_INVALID_PDF', temporary: false })
+  })
+
+  it('rejects an oversized declared label before reading it', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      pull: () => undefined,
+      cancel
+    })
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Length': String(MAX_SHIPPING_LABEL_BYTES + 1)
+      }
+    }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({ code: 'SHIPPING_LABEL_TOO_LARGE', temporary: false })
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('enforces the label size limit while streaming and cancels the response', async () => {
+    const cancel = vi.fn()
+    const signature = new TextEncoder().encode('%PDF-')
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(signature)
+        controller.enqueue(new Uint8Array(MAX_SHIPPING_LABEL_BYTES))
+      },
+      cancel
+    })
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'application/pdf' }
+    }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({ code: 'SHIPPING_LABEL_TOO_LARGE', temporary: false })
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
+  it('sanitizes label network failures', async () => {
+    const request = vi.fn<typeof fetch>().mockRejectedValue(new Error('device-secret private network detail'))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({
+        code: 'SHIPPING_LABEL_DOWNLOAD_FAILED',
+        message: 'The shipping label could not be downloaded right now.',
+        temporary: true
+      })
+  })
+
+  it('preserves definitive Device authentication handling for label retrieval', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('revoked', 'attempt-1'))
+      .rejects.toBeInstanceOf(DefinitiveDeviceAuthenticationError)
+  })
+
+  it('rejects a non-success label status with a safe backend error', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 'SHIPPING_LABEL_RETRIEVAL_NOT_ALLOWED', message: 'internal assignment detail' }
+    }), {
+      status: 409,
+      headers: { 'Content-Type': 'application/json' }
+    }))
+
+    await expect(new NotiVentaApiClient(config, request).downloadAttemptLabel('device-secret', 'attempt-1'))
+      .rejects.toMatchObject({
+        status: 409,
+        code: 'SHIPPING_LABEL_RETRIEVAL_NOT_ALLOWED',
+        message: 'The shipping label is no longer authorized for this assignment.',
+        temporary: false
+      })
   })
 
   it('rejects a malformed recovery response without beginning normal polling', async () => {

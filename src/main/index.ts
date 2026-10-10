@@ -14,6 +14,9 @@ import { PrinterConfigurationService } from './printers/printer-configuration-se
 import { PrinterReadinessService } from './printers/printer-readiness-service'
 import { createDiagnosticLabelPrintRequest } from './printers/diagnostic-label'
 import { WindowsPrinterAdapter } from './printers/windows-printer-adapter'
+import { ShippingLabelDownloadService } from './labels/shipping-label-download-service'
+import { ShippingLabelPreparationService } from './labels/shipping-label-preparation-service'
+import { PhysicalLabelExecutionCoordinator } from './printing/physical-label-execution-coordinator'
 import { StartupService } from './startup-service'
 import { createAgentTray } from './tray'
 import { createMainWindow } from './window'
@@ -51,8 +54,9 @@ app.whenReady().then(async () => {
   const startup = new StartupService(app)
   startup.apply(settings.getStartWithWindows())
 
+  const api = new NotiVentaApiClient(config)
   controller = new AgentController(
-    new NotiVentaApiClient(config),
+    api,
     credentials,
     settings,
     detectSystemName(),
@@ -74,6 +78,13 @@ app.whenReady().then(async () => {
   const printerConfiguration = new PrinterConfigurationService(settings, printerDiscovery)
   const printerReadiness = new PrinterReadinessService(printerConfiguration)
   const windowsPrinter = new WindowsPrinterAdapter(printerReadiness)
+  const physicalLabels = new PhysicalLabelExecutionCoordinator(
+    settings,
+    printerReadiness,
+    new ShippingLabelPreparationService(new ShippingLabelDownloadService(api, credentials, settings)),
+    windowsPrinter,
+    controller
+  )
   const diagnosticLabelRequest = createDiagnosticLabelPrintRequest({
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
@@ -88,6 +99,9 @@ app.whenReady().then(async () => {
     printerConfiguration,
     printerReadiness,
     printTestLabel: () => windowsPrinter.print(diagnosticLabelRequest),
+    submitShippingLabel: () => physicalLabels.submitWithOperatorAuthorization(),
+    confirmShippingLabelPrinted: () => physicalLabels.confirmPhysicalSuccess(),
+    reportShippingLabelPrintFailure: () => physicalLabels.reportObservedFailure(),
     getWindow: () => mainWindow
   })
   tray = createAgentTray({

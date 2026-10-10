@@ -106,6 +106,25 @@ export type DiagnosticPrintResult =
       message: 'Windows did not confirm whether the print request was submitted. Do not retry automatically.'
     }
 
+export type ShippingLabelPrintResult =
+  | {
+      status: 'AWAITING_CONFIRMATION'
+      message: 'Submitted to Windows. Confirm the physical shipping label before continuing.'
+    }
+  | {
+      status: 'RECORDED_SUCCESS'
+      message: 'Physical success was saved and will be delivered to NotiVenta.'
+    }
+  | {
+      status: 'RECORDED_FAILURE' | 'RECORDED_UNKNOWN'
+      message: string
+    }
+  | {
+      status: 'BLOCKED'
+      code: string
+      message: string
+    }
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -127,6 +146,9 @@ export interface AgentRendererApi {
   selectPrinter(systemName: string): Promise<PrinterConfigurationStatus>
   clearPrinterConfiguration(): Promise<PrinterConfigurationStatus>
   printTestLabel(): Promise<DiagnosticPrintResult>
+  submitShippingLabel(): Promise<ShippingLabelPrintResult>
+  confirmShippingLabelPrinted(): Promise<ShippingLabelPrintResult>
+  reportShippingLabelPrintFailure(): Promise<ShippingLabelPrintResult>
 }
 
 export const IPC_CHANNELS = {
@@ -140,5 +162,8 @@ export const IPC_CHANNELS = {
   getPrinterReadiness: 'agent:get-printer-readiness',
   selectPrinter: 'agent:select-printer',
   clearPrinterConfiguration: 'agent:clear-printer-configuration',
-  printTestLabel: 'agent:print-test-label'
+  printTestLabel: 'agent:print-test-label',
+  submitShippingLabel: 'agent:submit-shipping-label',
+  confirmShippingLabelPrinted: 'agent:confirm-shipping-label-printed',
+  reportShippingLabelPrintFailure: 'agent:report-shipping-label-print-failure'
 } as const

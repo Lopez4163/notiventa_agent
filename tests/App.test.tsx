@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../src/renderer/src/App'
-import type { AgentRendererApi, AgentState, DiagnosticPrintResult, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness } from '../src/shared/contracts'
+import type { AgentRendererApi, AgentState, DiagnosticPrintResult, PrinterConfigurationStatus, PrinterDiscoveryResult, PrinterReadiness, ShippingLabelPrintResult } from '../src/shared/contracts'
 
 afterEach(cleanup)
 const unpaired: AgentState = { lifecycle: 'needs-pairing', systemName: 'DESKTOP-ABC123', device: null, backend: null, receivedJob: null, error: null }
@@ -130,13 +130,44 @@ describe('Agent UI', () => {
     })
     expect(await screen.findByRole('button', { name: 'Print Test Label' })).toBeEnabled()
   })
+  it('requires explicit authorization before submitting a real shipping label and records only operator confirmation', async () => {
+    const submitShippingLabel = vi.fn().mockResolvedValue({
+      status: 'AWAITING_CONFIRMATION',
+      message: 'Submitted to Windows. Confirm the physical shipping label before continuing.'
+    } satisfies ShippingLabelPrintResult)
+    const confirmShippingLabelPrinted = vi.fn().mockReturnValue({
+      status: 'RECORDED_SUCCESS',
+      message: 'Physical success was saved and will be delivered to NotiVenta.'
+    } satisfies ShippingLabelPrintResult)
+    install({
+      getState: connected({ receivedJob: { jobId: 'job', attemptId: 'attempt', printType: 'SHIPPING_LABEL', shipmentId: '200000001', orderId: null } }),
+      getPrinterConfiguration: vi.fn().mockResolvedValue(config),
+      getPrinterReadiness: vi.fn().mockResolvedValue(ready),
+      submitShippingLabel,
+      confirmShippingLabelPrinted
+    }); render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Print Shipping Label' }))
+    expect(await screen.findByRole('dialog', { name: 'Print shipping label?' })).toBeInTheDocument()
+    expect(submitShippingLabel).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit to Windows' }))
+    await screen.findByRole('dialog', { name: 'Did the physical label print correctly?' })
+    expect(submitShippingLabel).toHaveBeenCalledOnce()
+    expect(confirmShippingLabelPrinted).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Printed' }))
+    expect(confirmShippingLabelPrinted).toHaveBeenCalledOnce()
+  })
+  it('does not expose real-label controls without a received assignment and READY printer', async () => {
+    install({ getState: connected() }); render(<App />)
+    await screen.findByText('NOT CONFIGURED')
+    expect(screen.queryByRole('button', { name: 'Print Shipping Label' })).not.toBeInTheDocument()
+  })
   it('never invokes a print boundary', async () => {
     const printTestLabel = vi.fn(); install({ getState: connected(), printTestLabel }); render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: 'Choose Printer' })); fireEvent.click(await screen.findByRole('radio', { name: 'WHTP203e' })); fireEvent.click(screen.getByRole('button', { name: 'Select' })); await vi.waitFor(() => expect(window.notiventa.selectPrinter).toHaveBeenCalledWith('WHTP203e')); expect(printTestLabel).not.toHaveBeenCalled()
   })
 })
-function connected(): ReturnType<typeof vi.fn> { return vi.fn().mockResolvedValue({ ...unpaired, lifecycle: 'connected', device: { id: '1', systemName: 'DESKTOP-ABC123', displayName: 'Packing Station', platform: 'windows', agentVersion: '1.0.0' }, backend: { isPaused: false, systemBlocked: false, mercadoLibreStatus: 'CONNECTED', queueCount: 0, updateStatus: 'CURRENT' } }) }
+function connected(overrides: Partial<AgentState> = {}): ReturnType<typeof vi.fn> { return vi.fn().mockResolvedValue({ ...unpaired, lifecycle: 'connected', device: { id: '1', systemName: 'DESKTOP-ABC123', displayName: 'Packing Station', platform: 'windows', agentVersion: '1.0.0' }, backend: { isPaused: false, systemBlocked: false, mercadoLibreStatus: 'CONNECTED', queueCount: 0, updateStatus: 'CURRENT' }, ...overrides }) }
 function install(overrides: Partial<AgentRendererApi>, forbidden: Record<string, unknown> = {}): void {
-  const api: AgentRendererApi = { getState: vi.fn().mockResolvedValue(unpaired), pairDevice: vi.fn(), subscribeToState: vi.fn().mockReturnValue(() => undefined), getStartWithWindows: vi.fn().mockResolvedValue(true), setStartWithWindows: vi.fn(), listInstalledPrinters: vi.fn().mockResolvedValue(discovery), getPrinterConfiguration: vi.fn().mockResolvedValue(none), getPrinterReadiness: vi.fn().mockResolvedValue(notConfigured), selectPrinter: vi.fn().mockResolvedValue(none), clearPrinterConfiguration: vi.fn().mockResolvedValue(none), printTestLabel: vi.fn(), ...overrides }
+  const api: AgentRendererApi = { getState: vi.fn().mockResolvedValue(unpaired), pairDevice: vi.fn(), subscribeToState: vi.fn().mockReturnValue(() => undefined), getStartWithWindows: vi.fn().mockResolvedValue(true), setStartWithWindows: vi.fn(), listInstalledPrinters: vi.fn().mockResolvedValue(discovery), getPrinterConfiguration: vi.fn().mockResolvedValue(none), getPrinterReadiness: vi.fn().mockResolvedValue(notConfigured), selectPrinter: vi.fn().mockResolvedValue(none), clearPrinterConfiguration: vi.fn().mockResolvedValue(none), printTestLabel: vi.fn(), submitShippingLabel: vi.fn(), confirmShippingLabelPrinted: vi.fn(), reportShippingLabelPrintFailure: vi.fn(), ...overrides }
   Object.defineProperty(window, 'notiventa', { configurable: true, value: { ...api, ...forbidden } })
 }

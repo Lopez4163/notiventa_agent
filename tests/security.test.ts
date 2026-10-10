@@ -7,8 +7,9 @@ import { PRELOAD_OUTPUT_FILENAME } from '../src/shared/build-artifacts'
 describe('Electron security boundary', () => {
   it('exposes only the intended Agent IPC channels', () => {
     expect(Object.keys(IPC_CHANNELS).sort()).toEqual([
-      'clearPrinterConfiguration', 'getPrinterConfiguration', 'getPrinterReadiness', 'getStartWithWindows', 'getState',
-      'listInstalledPrinters', 'pairDevice', 'printTestLabel', 'selectPrinter', 'setStartWithWindows', 'stateChanged'
+      'clearPrinterConfiguration', 'confirmShippingLabelPrinted', 'getPrinterConfiguration', 'getPrinterReadiness',
+      'getStartWithWindows', 'getState', 'listInstalledPrinters', 'pairDevice', 'printTestLabel',
+      'reportShippingLabelPrintFailure', 'selectPrinter', 'setStartWithWindows', 'stateChanged', 'submitShippingLabel'
     ])
   })
 
@@ -19,6 +20,10 @@ describe('Electron security boundary', () => {
     expect(source).not.toContain('require(')
     expect(source).toContain('printTestLabel: () => ipcRenderer.invoke(IPC_CHANNELS.printTestLabel)')
     expect(source).not.toMatch(/printTestLabel:\s*\([^)]/)
+    expect(source).toContain('submitShippingLabel: () => ipcRenderer.invoke(IPC_CHANNELS.submitShippingLabel)')
+    expect(source).toContain('confirmShippingLabelPrinted: () => ipcRenderer.invoke(IPC_CHANNELS.confirmShippingLabelPrinted)')
+    expect(source).toContain('reportShippingLabelPrintFailure: () => ipcRenderer.invoke(IPC_CHANNELS.reportShippingLabelPrintFailure)')
+    expect(source).not.toMatch(/submitShippingLabel:\s*\([^)]/)
   })
 
   it('locks down BrowserWindow web preferences and navigation', () => {

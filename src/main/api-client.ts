@@ -25,6 +25,19 @@ export class DefinitiveDeviceAuthenticationError extends BackendError {
   }
 }
 
+export const MAX_SHIPPING_LABEL_BYTES = 20 * 1024 * 1024
+
+export class ShippingLabelDownloadError extends BackendError {
+  constructor(
+    message: string,
+    code: string,
+    temporary: boolean,
+    status: number | null = null
+  ) {
+    super(message, status, code, temporary)
+  }
+}
+
 interface PairResponse {
   device: SafeDeviceMetadata & { isPaused: boolean; lastSeenAt: string }
   deviceCredential: string
@@ -148,6 +161,35 @@ export class NotiVentaApiClient {
     }
   }
 
+  async downloadAttemptLabel(credential: string, attemptId: string): Promise<Uint8Array> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10_000)
+    try {
+      const response = await this.request(
+        new URL(`/api/v1/agent/attempts/${encodeURIComponent(attemptId)}/label`, this.config.backendUrl),
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${credential}` },
+          signal: controller.signal
+        }
+      )
+      if (!response.ok) await throwResponseError(response, true)
+      return await readValidatedPdf(response)
+    } catch (error) {
+      if (error instanceof BackendError) throw error
+      const timedOut = error instanceof DOMException && error.name === 'AbortError'
+      throw new ShippingLabelDownloadError(
+        timedOut
+          ? 'The shipping label download took too long.'
+          : 'The shipping label could not be downloaded right now.',
+        timedOut ? 'SHIPPING_LABEL_DOWNLOAD_TIMEOUT' : 'SHIPPING_LABEL_DOWNLOAD_FAILED',
+        true
+      )
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
   async submitPrintEvent(credential: string, event: PendingResultEvent): Promise<void> {
     const response = await this.send(
       `/api/v1/agent/jobs/${encodeURIComponent(event.jobId)}/events`,
@@ -184,16 +226,7 @@ export class NotiVentaApiClient {
         signal: controller.signal
       })
       if (response.ok) return response
-      const errorBody = await safeErrorBody(response)
-      if (authenticated && (response.status === 401 || errorBody.code === 'DEVICE_UNAUTHORIZED')) {
-        throw new DefinitiveDeviceAuthenticationError()
-      }
-      throw new BackendError(
-        pairingErrorMessage(errorBody.code, response.status),
-        response.status,
-        errorBody.code,
-        response.status >= 500
-      )
+      return await throwResponseError(response, authenticated)
     } catch (error) {
       if (error instanceof BackendError) throw error
       const timedOut = error instanceof DOMException && error.name === 'AbortError'
@@ -207,6 +240,114 @@ export class NotiVentaApiClient {
       clearTimeout(timeout)
     }
   }
+}
+
+async function readValidatedPdf(response: Response): Promise<Uint8Array> {
+  const contentType = response.headers.get('content-type')
+    ?.split(';', 1)[0]
+    .trim()
+    .toLowerCase()
+  if (contentType !== 'application/pdf') {
+    await cancelResponseBody(response)
+    throw new ShippingLabelDownloadError(
+      'NotiVenta returned an invalid shipping-label document.',
+      'SHIPPING_LABEL_INVALID_CONTENT_TYPE',
+      false,
+      response.status
+    )
+  }
+
+  const declaredLength = parseContentLength(response.headers.get('content-length'))
+  if (declaredLength !== null && declaredLength > MAX_SHIPPING_LABEL_BYTES) {
+    await cancelResponseBody(response)
+    throw labelTooLarge(response.status)
+  }
+  if (!response.body) {
+    throw invalidPdf(response.status)
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value || value.byteLength === 0) continue
+      totalBytes += value.byteLength
+      if (totalBytes > MAX_SHIPPING_LABEL_BYTES) {
+        await reader.cancel().catch(() => undefined)
+        throw labelTooLarge(response.status)
+      }
+      chunks.push(value.slice())
+    }
+
+    const bytes = new Uint8Array(totalBytes)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.byteLength
+      chunk.fill(0)
+    }
+    chunks.length = 0
+
+    if (!hasPdfSignature(bytes)) {
+      bytes.fill(0)
+      throw invalidPdf(response.status)
+    }
+    return bytes
+  } catch (error) {
+    for (const chunk of chunks) chunk.fill(0)
+    if (error instanceof BackendError) throw error
+    await reader.cancel().catch(() => undefined)
+    throw new ShippingLabelDownloadError(
+      'The shipping label download was interrupted.',
+      'SHIPPING_LABEL_DOWNLOAD_INTERRUPTED',
+      true,
+      response.status
+    )
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+function parseContentLength(value: string | null): number | null {
+  if (value === null) return null
+  const normalized = value.trim()
+  if (!/^\d+$/.test(normalized)) return null
+  const parsed = Number(normalized)
+  return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+function hasPdfSignature(bytes: Uint8Array): boolean {
+  return bytes.byteLength >= 5 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46 &&
+    bytes[4] === 0x2d
+}
+
+function labelTooLarge(status: number): ShippingLabelDownloadError {
+  return new ShippingLabelDownloadError(
+    'The shipping label is too large to process safely.',
+    'SHIPPING_LABEL_TOO_LARGE',
+    false,
+    status
+  )
+}
+
+function invalidPdf(status: number): ShippingLabelDownloadError {
+  return new ShippingLabelDownloadError(
+    'NotiVenta returned an invalid shipping-label document.',
+    'SHIPPING_LABEL_INVALID_PDF',
+    false,
+    status
+  )
+}
+
+async function cancelResponseBody(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined)
 }
 
 function parseReceivedJob(value: unknown): ReceivedPrintJob | null {
@@ -253,7 +394,20 @@ async function safeErrorBody(response: Response): Promise<{ code: string | null 
   }
 }
 
-function pairingErrorMessage(code: string | null, status: number): string {
+async function throwResponseError(response: Response, authenticated: boolean): Promise<never> {
+  const errorBody = await safeErrorBody(response)
+  if (authenticated && (response.status === 401 || errorBody.code === 'DEVICE_UNAUTHORIZED')) {
+    throw new DefinitiveDeviceAuthenticationError()
+  }
+  throw new BackendError(
+    requestErrorMessage(errorBody.code, response.status),
+    response.status,
+    errorBody.code,
+    response.status >= 500
+  )
+}
+
+function requestErrorMessage(code: string | null, status: number): string {
   const messages: Record<string, string> = {
     INVALID_PAIRING_CODE: 'That pairing code is not valid.',
     PAIRING_CODE_EXPIRED: 'That pairing code expired. Request a new one.',
@@ -261,7 +415,15 @@ function pairingErrorMessage(code: string | null, status: number): string {
     PAIRING_CODE_INVALIDATED: 'That pairing code is no longer valid. Request a new one.',
     PAIRING_RATE_LIMITED: 'Too many pairing attempts. Try again later.',
     DEVICE_ALREADY_ACTIVE: 'Disconnect the active computer from the dashboard before pairing this one.',
-    PAIRING_SERVICE_UNAVAILABLE: 'Pairing is temporarily unavailable.'
+    PAIRING_SERVICE_UNAVAILABLE: 'Pairing is temporarily unavailable.',
+    PRINT_ATTEMPT_NOT_FOUND: 'The current print assignment is no longer available.',
+    SHIPPING_LABEL_RETRIEVAL_NOT_ALLOWED: 'The shipping label is no longer authorized for this assignment.',
+    SHIPPING_LABEL_NOT_READY: 'The shipping label is not ready yet.',
+    SHIPPING_LABEL_UNSUPPORTED: 'This shipment does not provide a printable shipping label.',
+    SHIPPING_LABEL_NOT_FOUND: 'The shipping label could not be found.',
+    MERCADO_LIBRE_CONNECTION_REQUIRED: 'Reconnect Mercado Libre before retrieving the shipping label.',
+    SHIPPING_LABEL_PROVIDER_UNAVAILABLE: 'The shipping label provider is temporarily unavailable.',
+    SHIPPING_LABEL_INVALID_RESPONSE: 'The shipping label provider returned an invalid document.'
   }
   return (code && messages[code]) || (status >= 500 ? 'NotiVenta is temporarily unavailable.' : 'The request could not be completed.')
 }

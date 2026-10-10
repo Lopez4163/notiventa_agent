@@ -7,7 +7,7 @@ import type { StartupService } from '../src/main/startup-service'
 import type { PrinterDiscovery } from '../src/main/printers/printer-discovery'
 import type { PrinterConfigurationService } from '../src/main/printers/printer-configuration-service'
 import type { PrinterReadinessService } from '../src/main/printers/printer-readiness-service'
-import { IPC_CHANNELS, type DiagnosticPrintResult } from '../src/shared/contracts'
+import { IPC_CHANNELS, type DiagnosticPrintResult, type ShippingLabelPrintResult } from '../src/shared/contracts'
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
 
@@ -23,6 +23,9 @@ function harness() {
     message: 'Submitted to Windows. Verify that the label printed correctly.'
   }
   const printTestLabel = vi.fn().mockResolvedValue(printResult)
+  const submitShippingLabel = vi.fn()
+  const confirmShippingLabelPrinted = vi.fn()
+  const reportShippingLabelPrintFailure = vi.fn()
   const controller = {
     onState: vi.fn().mockReturnValue(() => undefined),
     getState: vi.fn(),
@@ -41,11 +44,14 @@ function harness() {
     printerConfiguration: {} as PrinterConfigurationService,
     printerReadiness: {} as PrinterReadinessService,
     printTestLabel,
+    submitShippingLabel,
+    confirmShippingLabelPrinted,
+    reportShippingLabelPrintFailure,
     getWindow: () => window
   })
   const handler = handlers.get(IPC_CHANNELS.printTestLabel)
   if (!handler) throw new Error('Test print handler was not registered.')
-  return { handler, printTestLabel, printResult, cleanup, ipcMain }
+  return { handlers, handler, printTestLabel, printResult, submitShippingLabel, confirmShippingLabelPrinted, reportShippingLabelPrintFailure, cleanup, ipcMain }
 }
 
 describe('diagnostic test print IPC', () => {
@@ -73,5 +79,33 @@ describe('diagnostic test print IPC', () => {
     const { cleanup, ipcMain } = harness()
     cleanup()
     expect(ipcMain.removeHandler).toHaveBeenCalledWith(IPC_CHANNELS.printTestLabel)
+  })
+})
+
+describe('physical shipping-label IPC', () => {
+  it('accepts no renderer-controlled print inputs and requires the trusted Main action', async () => {
+    const { handlers, submitShippingLabel } = harness()
+    const handler = handlers.get(IPC_CHANNELS.submitShippingLabel)
+    if (!handler) throw new Error('Shipping label handler was not registered.')
+    const result: ShippingLabelPrintResult = { status: 'BLOCKED', code: 'NO_RECEIVED_ASSIGNMENT', message: 'No received shipping-label assignment is available.' }
+    submitShippingLabel.mockResolvedValue(result)
+    await expect(handler({ sender: { id: 42 } } as IpcMainInvokeEvent, 'C:\\attacker.pdf', 'Other queue')).resolves.toEqual(result)
+    expect(submitShippingLabel).toHaveBeenCalledWith()
+  })
+
+  it('keeps terminal confirmation actions trusted and parameter-free', async () => {
+    const { handlers, confirmShippingLabelPrinted, reportShippingLabelPrintFailure } = harness()
+    const event = { sender: { id: 42 } } as IpcMainInvokeEvent
+    const success = { status: 'RECORDED_SUCCESS', message: 'Physical success was saved and will be delivered to NotiVenta.' } satisfies ShippingLabelPrintResult
+    const failure = { status: 'RECORDED_FAILURE', message: 'The observed print failure was saved and will be delivered to NotiVenta.' } satisfies ShippingLabelPrintResult
+    confirmShippingLabelPrinted.mockReturnValue(success)
+    reportShippingLabelPrintFailure.mockReturnValue(failure)
+    const successHandler = handlers.get(IPC_CHANNELS.confirmShippingLabelPrinted)
+    const failureHandler = handlers.get(IPC_CHANNELS.reportShippingLabelPrintFailure)
+    if (!successHandler || !failureHandler) throw new Error('Terminal handlers were not registered.')
+    expect(successHandler(event, { type: 'PRINTED_SUCCESSFULLY', attemptId: 'attacker' })).toEqual(success)
+    expect(failureHandler(event, { type: 'UNKNOWN', attemptId: 'attacker' })).toEqual(failure)
+    expect(confirmShippingLabelPrinted).toHaveBeenCalledWith()
+    expect(reportShippingLabelPrintFailure).toHaveBeenCalledWith()
   })
 })
