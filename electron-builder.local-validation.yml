@@ -16,6 +16,7 @@ extraResources:
 asar: true
 asarUnpack:
   - node_modules/@napi-rs/keyring*/**/*.node
+  - node_modules/@napi-rs/canvas*/**/*.node
 
 win:
   target:

@@ -5,7 +5,7 @@ import type { PrinterReadinessService } from '../src/main/printers/printer-readi
 
 // The adapter is exercised on non-Windows CI with an injected win32 platform,
 // so use a host-absolute path while still proving it is passed through exactly.
-const documentPath = '/agent/resources/shipping-label.pdf'
+const documentPath = '/agent/resources/shipping-label.html'
 const ready = {
   state: 'READY',
   ready: true,

@@ -1,7 +1,10 @@
 import { access, chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { createCanvas } from '@napi-rs/canvas'
 import { PDFDocument } from 'pdf-lib'
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import type { InMemoryShippingLabel } from './shipping-label-download-service'
 
 const POINTS_PER_INCH = 72
@@ -10,12 +13,22 @@ const EXPECTED_HEIGHT_POINTS = 6 * POINTS_PER_INCH
 const DIMENSION_TOLERANCE_POINTS = 0.5
 const DEFAULT_LEASE_TIMEOUT_MS = 60_000
 const PREPARED_LABEL_FILENAME = 'shipping-label.pdf'
+const RASTERIZED_LABEL_FILENAME = 'shipping-label.png'
+const PRINT_DOCUMENT_FILENAME = 'shipping-label.html'
+const RASTER_DPI = 300
+const RASTER_WIDTH_PIXELS = 4 * RASTER_DPI
+const RASTER_HEIGHT_PIXELS = 6 * RASTER_DPI
+const require = createRequire(import.meta.url)
+// PDF.js's Node font loader passes this directly to fs.readFile, so this must
+// remain a filesystem directory rather than a file:// URL.
+const standardFontDataUrl = `${dirname(require.resolve('pdfjs-dist/standard_fonts/FoxitSerif.pfb'))}/`
 
 export type ShippingLabelPreparationErrorCode =
   | 'INVALID_PDF_DOCUMENT'
   | 'UNSUPPORTED_PAGE_COUNT'
   | 'UNSUPPORTED_PAGE_GEOMETRY'
   | 'LABEL_PREPARATION_FAILED'
+  | 'LABEL_RENDERING_FAILED'
   | 'LABEL_PREPARATION_TIMEOUT'
   | 'LABEL_CLEANUP_FAILED'
 
@@ -33,7 +46,7 @@ export interface PreparedShippingLabel {
   readonly attemptId: string
   readonly shipmentId: string
   readonly orderId: string | null
-  /** Main-process-only, Agent-owned temporary PDF path. */
+  /** Main-process-only, Agent-owned HTML document containing the exact raster. */
   readonly documentPath: string
   readonly pageCount: 1
   readonly geometry: {
@@ -52,6 +65,8 @@ export interface CurrentShippingLabelSource {
 export interface ShippingLabelPreparationDependencies {
   leaseTimeoutMs?: number
   temporaryRoot?: string
+  /** Internal seam for deterministic rendering-failure coverage. */
+  rasterize?: (bytes: Uint8Array) => Promise<Uint8Array>
 }
 
 /**
@@ -61,6 +76,7 @@ export interface ShippingLabelPreparationDependencies {
 export class ShippingLabelPreparationService {
   private readonly leaseTimeoutMs: number
   private readonly temporaryRoot: string
+  private readonly rasterize: (bytes: Uint8Array) => Promise<Uint8Array>
 
   constructor(
     private readonly labels: CurrentShippingLabelSource,
@@ -68,6 +84,7 @@ export class ShippingLabelPreparationService {
   ) {
     this.leaseTimeoutMs = dependencies.leaseTimeoutMs ?? DEFAULT_LEASE_TIMEOUT_MS
     this.temporaryRoot = dependencies.temporaryRoot ?? tmpdir()
+    this.rasterize = dependencies.rasterize ?? rasterizeFourBySixPdf
   }
 
   async withPreparedCurrentLabel<T>(
@@ -80,16 +97,21 @@ export class ShippingLabelPreparationService {
       try {
         temporaryDirectory = await mkdtemp(join(this.temporaryRoot, 'notiventa-label-'))
         await chmod(temporaryDirectory, 0o700)
-        documentPath = join(temporaryDirectory, PREPARED_LABEL_FILENAME)
-        await writeFile(documentPath, label.bytes, { flag: 'wx', mode: 0o600 })
+        const sourcePdfPath = join(temporaryDirectory, PREPARED_LABEL_FILENAME)
+        await writeFile(sourcePdfPath, label.bytes, { flag: 'wx', mode: 0o600 })
+        await access(sourcePdfPath)
+        const png = await this.rasterize(label.bytes)
+        await writeFile(join(temporaryDirectory, RASTERIZED_LABEL_FILENAME), png, { flag: 'wx', mode: 0o600 })
+        documentPath = join(temporaryDirectory, PRINT_DOCUMENT_FILENAME)
+        await writeFile(documentPath, printDocumentHtml(), { flag: 'wx', mode: 0o600 })
         await access(documentPath)
       } catch {
         if (temporaryDirectory) {
           await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined)
         }
         throw new ShippingLabelPreparationError(
-          'The shipping label could not be prepared safely.',
-          'LABEL_PREPARATION_FAILED'
+          'The shipping label could not be rendered safely.',
+          'LABEL_RENDERING_FAILED'
         )
       }
 
@@ -118,6 +140,58 @@ export class ShippingLabelPreparationService {
       }
     })
   }
+}
+
+async function rasterizeFourBySixPdf(bytes: Uint8Array): Promise<Uint8Array> {
+  // PDF.js may transfer its input, so retain the caller-owned buffer for the
+  // download service to clear and render only a private copy.
+  const renderingBytes = new Uint8Array(bytes)
+  let loadingTask: ReturnType<typeof getDocument> | null = null
+  try {
+    loadingTask = getDocument({
+      data: renderingBytes,
+      standardFontDataUrl,
+      disableFontFace: true,
+      isEvalSupported: false,
+      stopAtErrors: true,
+      useSystemFonts: false
+    })
+    const document = await loadingTask.promise
+    if (document.numPages !== 1) throw new Error('Unexpected page count')
+    const page = await document.getPage(1)
+    const viewport = page.getViewport({ scale: RASTER_DPI / POINTS_PER_INCH })
+    const width = Math.round(viewport.width)
+    const height = Math.round(viewport.height)
+    if (width !== RASTER_WIDTH_PIXELS || height !== RASTER_HEIGHT_PIXELS) {
+      throw new Error('Unexpected raster geometry')
+    }
+    const canvas = createCanvas(width, height)
+    await page.render({
+      canvas: canvas as unknown as HTMLCanvasElement,
+      canvasContext: canvas.getContext('2d') as unknown as CanvasRenderingContext2D,
+      viewport
+    }).promise
+    return canvas.toBuffer('image/png')
+  } finally {
+    // PDF.js can transfer this private buffer to its worker. A detached view
+    // cannot be cleared, but its backing bytes are no longer available here.
+    // Do not turn successful rendering into a preparation failure in that case.
+    try {
+      renderingBytes.fill(0)
+    } catch {
+      // PDF.js detached the private copy.
+    }
+    await loadingTask?.destroy().catch(() => undefined)
+  }
+}
+
+function printDocumentHtml(): string {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><style>
+@page { size: 4in 6in; margin: 0; }
+html, body { width: 4in; height: 6in; margin: 0; padding: 0; overflow: hidden; background: white; }
+img { display: block; width: 4in; height: 6in; object-fit: fill; }
+</style></head><body><img src="${RASTERIZED_LABEL_FILENAME}" alt=""></body></html>`
 }
 
 async function inspectFourBySixPdf(

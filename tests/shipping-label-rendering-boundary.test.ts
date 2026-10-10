@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ShippingLabelPreparationService } from '../src/main/labels/shipping-label-preparation-service'
 import { WindowsPrinterAdapter } from '../src/main/printers/windows-printer-adapter'
@@ -14,13 +14,17 @@ afterEach(async () => {
   temporaryRoot = null
 })
 
-describe('shipping-label PDF rendering boundary', () => {
-  it('hands a validated 4 x 6 PDF to Electron unchanged before the Windows boundary', async () => {
+describe('shipping-label rendering boundary', () => {
+  it('hands Electron a fixed-size raster print document instead of a PDF viewer document', async () => {
     temporaryRoot = await mkdtemp(join(tmpdir(), 'notiventa-rendering-boundary-'))
     const fixture = await createFourBySixShippingLabelFixture()
     const loadFile = vi.fn(async (path: string) => {
-      const loaded = await readFile(path)
-      expect(loaded).toEqual(Buffer.from(fixture))
+      expect(path).toMatch(/shipping-label\.html$/)
+      const loaded = await readFile(path, 'utf8')
+      expect(loaded).toContain('@page { size: 4in 6in; margin: 0; }')
+      expect(loaded).toContain('src="shipping-label.png"')
+      const png = await readFile(join(dirname(path), 'shipping-label.png'))
+      expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     })
     const print = vi.fn((_options, callback: (success: boolean, failureReason: string) => void) => callback(true, ''))
     const destroy = vi.fn()

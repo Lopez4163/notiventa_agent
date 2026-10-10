@@ -22,9 +22,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
     "@napi-rs/keyring": "^2.1.0",
     "electron-store": "^11.0.2",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.530",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

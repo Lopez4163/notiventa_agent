@@ -1,6 +1,7 @@
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { degrees, PDFDocument } from 'pdf-lib'
 import {
@@ -20,7 +21,7 @@ afterEach(async () => {
 })
 
 describe('ShippingLabelPreparationService', () => {
-  it('prepares one exact 4 x 6 portrait PDF without submitting it to Windows', async () => {
+  it('prepares a nonblank, exact 4 x 6 raster print document without submitting it to Windows', async () => {
     const bytes = await createPdf([{ width: 288, height: 432 }])
     const source = sourceFor(bytes)
     const windowsPrint = vi.fn()
@@ -43,8 +44,22 @@ describe('ShippingLabelPreparationService', () => {
             scale: 1
           }
         })
-        const preparedBytes = await readFile(label.documentPath)
-        expect(preparedBytes.subarray(0, 5).toString()).toBe('%PDF-')
+        expect(label.documentPath).toMatch(/shipping-label\.html$/)
+        const preparedHtml = await readFile(label.documentPath, 'utf8')
+        expect(preparedHtml).toContain('@page { size: 4in 6in; margin: 0; }')
+        expect(preparedHtml).toContain('src="shipping-label.png"')
+
+        const preparedPng = await readFile(join(dirname(label.documentPath), 'shipping-label.png'))
+        expect(preparedPng.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        const image = await loadImage(preparedPng)
+        expect(image.width).toBe(1200)
+        expect(image.height).toBe(1800)
+        const canvas = createCanvas(image.width, image.height)
+        const context = canvas.getContext('2d')
+        context.drawImage(image, 0, 0)
+        const pixels = context.getImageData(0, 0, image.width, image.height).data
+        expect(hasDarkPixel(pixels)).toBe(true)
+        expect(hasLightPixel(pixels)).toBe(true)
         return 'prepared'
       })
 
@@ -113,6 +128,20 @@ describe('ShippingLabelPreparationService', () => {
     })
   })
 
+  it('does not expose a print document when raster rendering fails', async () => {
+    const bytes = await createPdf([{ width: 288, height: 432 }])
+    const consumer = vi.fn()
+    const service = new ShippingLabelPreparationService(sourceFor(bytes), {
+      temporaryRoot,
+      rasterize: async () => { throw new Error('fixture rendering failure') }
+    })
+
+    await expect(service.withPreparedCurrentLabel(consumer)).rejects.toMatchObject({
+      code: 'LABEL_RENDERING_FAILED'
+    })
+    expect(consumer).not.toHaveBeenCalled()
+  })
+
   it('removes the prepared document when its consumer fails', async () => {
     const bytes = await createPdf([{ width: 288, height: 432 }])
     const service = new ShippingLabelPreparationService(sourceFor(bytes), { temporaryRoot })
@@ -176,4 +205,18 @@ async function createPdf(
 async function expectPathMissing(path: string | null): Promise<void> {
   expect(path).not.toBeNull()
   await expect(access(path as string)).rejects.toMatchObject({ code: 'ENOENT' })
+}
+
+function hasDarkPixel(pixels: Uint8ClampedArray): boolean {
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index] < 32 && pixels[index + 1] < 32 && pixels[index + 2] < 32) return true
+  }
+  return false
+}
+
+function hasLightPixel(pixels: Uint8ClampedArray): boolean {
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index] > 240 && pixels[index + 1] > 240 && pixels[index + 2] > 240) return true
+  }
+  return false
 }
