@@ -46,6 +46,7 @@ describe('AgentController durable result outbox', () => {
     expect(event.jobId).toBe(job.jobId)
     expect(created.outbox.events).toEqual([])
     expect(created.settings.getActiveAssignment()).toEqual({ kind: 'none' })
+    expect(created.controller.getState().receivedJob).toBeNull()
     created.controller.shutdown()
   })
 

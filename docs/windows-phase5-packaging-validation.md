@@ -290,3 +290,29 @@ Re-enable restores login registration: PASS
 This completes Phase 5.4 Windows VM acceptance for the local ARM64 package.
 It does not claim HTTPS staging/release acceptance, x64 primary-architecture
 readiness, real-Windows-hardware validation, code signing, or Phase 5.5 work.
+
+## P1.6F installed-package acceptance — 2026-10-13
+
+The local-validation ARM64 installer built from the local Agent checkpoint
+`c1e6eb5` plus the uncommitted terminal-state UI correction completed an
+isolated P1.6F2 acceptance run. The test used a separate local PostgreSQL,
+Redis, Dummy Mercado Libre, API, and frontend environment. No staging,
+production, real Mercado Libre shipment, or physical printer was used.
+
+```text
+Architecture: ARM64
+Installed native canvas and keyring modules: PASS
+Clean-profile pairing and credential restart persistence: PASS
+Selected Microsoft Print to PDF persistence: PASS
+Packaged PDF rasterization and virtual submission: PASS
+Output inspection: 1 page, portrait 4 × 6 in, readable, no clipping or black page
+Lifecycle: RECEIVED -> PRINTING -> PRINTED SUCCESSFULLY: PASS
+Terminal state removes the current shipping-label panel without restart: PASS
+Restart after terminal result: no replay or duplicate output: PASS
+```
+
+The x64 installer acceptance remains **deferred**, not passed: only a Windows
+ARM64 VM was available. ARM64 results do not validate the x64 native canvas or
+keyring binaries, Windows x64 behavior, code signing, staging, production, or
+physical-printer output. x64 validation remains required before release or
+physical x64-printer acceptance.

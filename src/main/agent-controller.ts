@@ -505,6 +505,7 @@ export class AgentController {
           throw new Error('Active job state could not be cleared safely.')
         }
         this.settings.clearActiveAssignment()
+        this.update({ receivedJob: null })
       }
       this.resultOutbox.remove(event.eventId)
       if (this.resultDeliveryRetryTimer) clearTimeout(this.resultDeliveryRetryTimer)
