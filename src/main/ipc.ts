@@ -7,6 +7,7 @@ import type { StartupService } from './startup-service'
 import type { PrinterDiscovery } from './printers/printer-discovery'
 import type { PrinterConfigurationService } from './printers/printer-configuration-service'
 import type { PrinterReadinessService } from './printers/printer-readiness-service'
+import type { DiagnosticPrintResult, ShippingLabelPrintResult } from '../shared/contracts'
 
 export function registerAgentIpc(options: {
   ipcMain: IpcMain
@@ -16,9 +17,17 @@ export function registerAgentIpc(options: {
   printerDiscovery: PrinterDiscovery
   printerConfiguration: PrinterConfigurationService
   printerReadiness: PrinterReadinessService
+  printTestLabel: () => Promise<DiagnosticPrintResult>
+  submitShippingLabel: () => Promise<ShippingLabelPrintResult>
+  confirmShippingLabelPrinted: () => ShippingLabelPrintResult
+  reportShippingLabelPrintFailure: () => ShippingLabelPrintResult
   getWindow: () => BrowserWindow | null
 }): () => void {
-  const { ipcMain, controller, settings, startup, printerDiscovery, printerConfiguration, printerReadiness, getWindow } = options
+  const {
+    ipcMain, controller, settings, startup, printerDiscovery, printerConfiguration,
+    printerReadiness, printTestLabel, submitShippingLabel, confirmShippingLabelPrinted,
+    reportShippingLabelPrintFailure, getWindow
+  } = options
   const assertTrustedSender = (event: IpcMainInvokeEvent): void => {
     const window = getWindow()
     if (!window || event.sender.id !== window.webContents.id) {
@@ -65,6 +74,22 @@ export function registerAgentIpc(options: {
     assertTrustedSender(event)
     return printerConfiguration.clear()
   })
+  ipcMain.handle(IPC_CHANNELS.printTestLabel, async (event) => {
+    assertTrustedSender(event)
+    return printTestLabel()
+  })
+  ipcMain.handle(IPC_CHANNELS.submitShippingLabel, async (event) => {
+    assertTrustedSender(event)
+    return submitShippingLabel()
+  })
+  ipcMain.handle(IPC_CHANNELS.confirmShippingLabelPrinted, (event) => {
+    assertTrustedSender(event)
+    return confirmShippingLabelPrinted()
+  })
+  ipcMain.handle(IPC_CHANNELS.reportShippingLabelPrintFailure, (event) => {
+    assertTrustedSender(event)
+    return reportShippingLabelPrintFailure()
+  })
 
   const unsubscribe = controller.onState((state) => {
     const window = getWindow()
@@ -84,7 +109,11 @@ export function registerAgentIpc(options: {
       IPC_CHANNELS.getPrinterConfiguration,
       IPC_CHANNELS.getPrinterReadiness,
       IPC_CHANNELS.selectPrinter,
-      IPC_CHANNELS.clearPrinterConfiguration
+      IPC_CHANNELS.clearPrinterConfiguration,
+      IPC_CHANNELS.printTestLabel,
+      IPC_CHANNELS.submitShippingLabel,
+      IPC_CHANNELS.confirmShippingLabelPrinted,
+      IPC_CHANNELS.reportShippingLabelPrintFailure
     ]) {
       ipcMain.removeHandler(channel)
     }

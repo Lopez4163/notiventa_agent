@@ -26,6 +26,11 @@ last command with:
 npm run package:staging:win:arm64
 ```
 
+The interactive package helper intentionally checks out its configured
+`staging` or `dev` branch. Do not use it to validate an exact feature-branch
+checkpoint. For a clean checkout already pinned to the intended commit, run the
+direct architecture-specific package command documented below instead.
+
 The build refuses non-Windows hosts, mismatched Node/target architectures,
 missing URLs, local URLs, credentials in URLs, non-HTTPS staging origins, and a
 missing architecture-matched Windows `@napi-rs/keyring` binary.
@@ -43,32 +48,35 @@ It asks for **Staging** or **Local VM validation**, checks out and fast-forwards
 the matching branch, runs `npm ci` and Agent tests, invokes the existing
 architecture-matched package command, and asks before starting the installer.
 Staging embeds `https://notiventabe-staging.up.railway.app`; local validation
-is ARM64-only and uses its existing fixed local backend. The helper stops when
+supports matching x64 and ARM64 Windows/Node installations and uses its
+existing fixed local backend. The helper stops when
 the checkout has local changes rather than resetting, stashing, or overwriting
 them.
 
-## ARM64 local-VM validation package
+## Local-validation package
 
 Phase 5.4 needs an installed packaged Agent to validate Windows login startup.
-For the local ARM64 VM only, build the explicitly named local-validation
-package. It embeds `http://192.168.64.1:8000` and a `local-validation` package
-environment; it is not staging or production and must never be distributed as
-either.
+Build the explicitly named local-validation package using matching Windows and
+Node architecture. It embeds `http://192.168.64.1:8000` and a
+`local-validation` package environment; it is not staging or production and
+must never be distributed as either.
 
-From a clean Agent checkout in the ARM64 Windows VM with ARM64 Node/npm:
+From a clean Windows checkout with matching x64 or ARM64 Node/npm:
 
 ```powershell
 node -p "process.platform + ' ' + process.arch"
 npm ci
 npm test
 npm run typecheck
+npm run package:local-validation:win:x64
+# or
 npm run package:local-validation:win:arm64
 ```
 
 The installer is written to:
 
 ```text
-dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe
+dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-<arch>.exe
 ```
 
 The local-validation command does not accept a backend URL environment
@@ -287,3 +295,30 @@ Re-enable restores login registration: PASS
 This completes Phase 5.4 Windows VM acceptance for the local ARM64 package.
 It does not claim HTTPS staging/release acceptance, x64 primary-architecture
 readiness, real-Windows-hardware validation, code signing, or Phase 5.5 work.
+
+## P1.6F installed-package acceptance — 2026-10-13
+
+The local-validation ARM64 installer built from Agent commit `86130a0`
+completed an isolated P1.6F2 acceptance run. That commit includes the
+terminal-state UI correction that clears the rendered shipping label after an
+acknowledged terminal result. The test used a separate local PostgreSQL, Redis,
+Dummy Mercado Libre, API, and frontend environment. No staging, production,
+real Mercado Libre shipment, or physical printer was used.
+
+```text
+Architecture: ARM64
+Installed native canvas and keyring modules: PASS
+Clean-profile pairing and credential restart persistence: PASS
+Selected Microsoft Print to PDF persistence: PASS
+Packaged PDF rasterization and virtual submission: PASS
+Output inspection: 1 page, portrait 4 × 6 in, readable, no clipping or black page
+Lifecycle: RECEIVED -> PRINTING -> PRINTED SUCCESSFULLY: PASS
+Terminal state removes the current shipping-label panel without restart: PASS
+Restart after terminal result: no replay or duplicate output: PASS
+```
+
+The x64 installer acceptance remains **deferred**, not passed: only a Windows
+ARM64 VM was available. ARM64 results do not validate the x64 native canvas or
+keyring binaries, Windows x64 behavior, code signing, staging, production, or
+physical-printer output. x64 validation remains required before release or
+physical x64-printer acceptance.

@@ -9,14 +9,20 @@ files:
   - out/**/*
   - package.json
 
+extraResources:
+  - from: resources/diagnostic-label.html
+    to: diagnostic/diagnostic-label.html
+
 asar: true
 asarUnpack:
   - node_modules/@napi-rs/keyring*/**/*.node
+  - node_modules/@napi-rs/canvas*/**/*.node
 
 win:
   target:
     - target: nsis
       arch:
+        - x64
         - arm64
   artifactName: NotiVenta-Local-Validation-Setup-${version}-${arch}.${ext}
 

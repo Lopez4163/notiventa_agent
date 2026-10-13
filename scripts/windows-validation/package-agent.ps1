@@ -61,10 +61,6 @@ if ($LASTEXITCODE -ne 0) {
 if ($architecture -notin @('arm64', 'x64')) {
     throw "Only Windows ARM64 and x64 Node installations are supported. Current Node architecture: $architecture."
 }
-if ($Mode -eq 'LocalValidation' -and $architecture -ne 'arm64') {
-    throw 'Local VM validation packages are ARM64-only. Use Staging on an x64 machine or run local validation from the ARM64 VM.'
-}
-
 Write-Host ''
 Write-Host "Mode: $Mode"
 Write-Host "Git branch: $branch"
@@ -77,9 +73,9 @@ if ($Mode -eq 'Staging') {
     $installerPattern = "NotiVenta-Staging-Setup-*-$architecture.exe"
 } else {
     Write-Host 'Embedded backend: http://192.168.64.1:8000'
-    $packageCommand = 'package:local-validation:win:arm64'
+    $packageCommand = "package:local-validation:win:$architecture"
     $installerDirectory = Join-Path $repositoryRoot 'dist\local-validation'
-    $installerPattern = 'NotiVenta-Local-Validation-Setup-*-arm64.exe'
+    $installerPattern = "NotiVenta-Local-Validation-Setup-*-$architecture.exe"
 }
 
 Invoke-CheckedCommand -Command 'npm.cmd' -Arguments @('ci')
