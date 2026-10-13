@@ -46,6 +46,7 @@ describe('AgentController durable result outbox', () => {
     expect(event.jobId).toBe(job.jobId)
     expect(created.outbox.events).toEqual([])
     expect(created.settings.getActiveAssignment()).toEqual({ kind: 'none' })
+    expect(created.controller.getState().receivedJob).toBeNull()
     created.controller.shutdown()
   })
 
@@ -83,6 +84,33 @@ describe('AgentController durable result outbox', () => {
     await vi.advanceTimersByTimeAsync(5_000)
     expect(created.api.submitPrintEvent).toHaveBeenNthCalledWith(2, 'stored-secret', original)
     expect(created.outbox.events).toEqual([])
+    created.controller.shutdown()
+  })
+
+  it('does not authorize the physical boundary until the durable PRINTING event is acknowledged', async () => {
+    const created = create()
+    await created.controller.initialize()
+    await expect(created.controller.recordPrintResultAndAwaitAcknowledgement({
+      ...job, type: 'PRINTING', executionMode: 'PHYSICAL'
+    })).resolves.toBe(true)
+    expect(created.api.submitPrintEvent).toHaveBeenCalledWith('stored-secret', expect.objectContaining({
+      type: 'PRINTING', executionMode: 'PHYSICAL', attemptId: job.attemptId
+    }))
+    expect(created.outbox.events).toEqual([])
+    expect(created.settings.getActiveAssignment()).toEqual({ kind: 'valid', assignment: { version: 1, job } })
+    created.controller.shutdown()
+  })
+
+  it('keeps an unacknowledged physical PRINTING event durable and returns false', async () => {
+    const created = create()
+    created.api.submitPrintEvent.mockRejectedValueOnce(new Error('network lost'))
+    await created.controller.initialize()
+    await expect(created.controller.recordPrintResultAndAwaitAcknowledgement({
+      ...job, type: 'PRINTING', executionMode: 'PHYSICAL'
+    })).resolves.toBe(false)
+    expect(created.outbox.events).toHaveLength(1)
+    expect(created.outbox.events[0]).toMatchObject({ type: 'PRINTING', executionMode: 'PHYSICAL' })
+    expect(created.settings.getActiveAssignment()).toEqual({ kind: 'valid', assignment: { version: 1, job } })
     created.controller.shutdown()
   })
 

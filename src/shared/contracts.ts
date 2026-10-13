@@ -83,6 +83,48 @@ export interface PrinterReadiness {
   discoveredPrinter: DiscoveredPrinter | null
 }
 
+export type DiagnosticPrintResult =
+  | {
+      status: 'SUBMITTED'
+      code: 'SUBMITTED_TO_WINDOWS'
+      message: 'Submitted to Windows. Verify that the label printed correctly.'
+    }
+  | {
+      status: 'FAILED'
+      code:
+        | 'PRINT_ALREADY_IN_PROGRESS'
+        | 'PRINT_DOCUMENT_INVALID'
+        | 'WINDOWS_PRINTING_UNAVAILABLE'
+        | 'PRINTER_NOT_READY'
+        | 'PRINT_RENDER_FAILED'
+        | 'WINDOWS_PRINT_REJECTED'
+      message: string
+    }
+  | {
+      status: 'INDETERMINATE'
+      code: 'WINDOWS_PRINT_SUBMISSION_TIMEOUT'
+      message: 'Windows did not confirm whether the print request was submitted. Do not retry automatically.'
+    }
+
+export type ShippingLabelPrintResult =
+  | {
+      status: 'AWAITING_CONFIRMATION'
+      message: 'Submitted to Windows. Confirm the physical shipping label before continuing.'
+    }
+  | {
+      status: 'RECORDED_SUCCESS'
+      message: 'Physical success was saved and will be delivered to NotiVenta.'
+    }
+  | {
+      status: 'RECORDED_FAILURE' | 'RECORDED_UNKNOWN'
+      message: string
+    }
+  | {
+      status: 'BLOCKED'
+      code: string
+      message: string
+    }
+
 export interface AgentState {
   lifecycle: AgentLifecycle
   systemName: string
@@ -103,6 +145,10 @@ export interface AgentRendererApi {
   getPrinterReadiness(): Promise<PrinterReadiness>
   selectPrinter(systemName: string): Promise<PrinterConfigurationStatus>
   clearPrinterConfiguration(): Promise<PrinterConfigurationStatus>
+  printTestLabel(): Promise<DiagnosticPrintResult>
+  submitShippingLabel(): Promise<ShippingLabelPrintResult>
+  confirmShippingLabelPrinted(): Promise<ShippingLabelPrintResult>
+  reportShippingLabelPrintFailure(): Promise<ShippingLabelPrintResult>
 }
 
 export const IPC_CHANNELS = {
@@ -115,5 +161,9 @@ export const IPC_CHANNELS = {
   getPrinterConfiguration: 'agent:get-printer-configuration',
   getPrinterReadiness: 'agent:get-printer-readiness',
   selectPrinter: 'agent:select-printer',
-  clearPrinterConfiguration: 'agent:clear-printer-configuration'
+  clearPrinterConfiguration: 'agent:clear-printer-configuration',
+  printTestLabel: 'agent:print-test-label',
+  submitShippingLabel: 'agent:submit-shipping-label',
+  confirmShippingLabelPrinted: 'agent:confirm-shipping-label-printed',
+  reportShippingLabelPrintFailure: 'agent:report-shipping-label-print-failure'
 } as const

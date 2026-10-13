@@ -63,10 +63,15 @@ describe('Windows staging packaging foundation', () => {
     expect(packagingScript).not.toContain('shell: true')
   })
 
-  it('keeps local VM validation separate from staging and binds it to the approved HTTP backend', () => {
+  it('keeps local validation separate from staging and supports matching x64 and ARM64 packages', () => {
+    expect(packageJson.scripts['package:local-validation:win:x64']).toContain(
+      'package-windows-local-validation.mjs x64'
+    )
     expect(packageJson.scripts['package:local-validation:win:arm64']).toContain(
       'package-windows-local-validation.mjs arm64'
     )
+    expect(localValidationPackagingScript).toContain("new Set(['x64', 'arm64'])")
+    expect(localValidationPackagingScript).toContain('`--${architecture}`')
     expect(localValidationPackagingScript).toContain("'http://192.168.64.1:8000'")
     expect(localValidationPackagingScript).toContain("NOTIVENTA_AGENT_PACKAGE_ENV: 'local-validation'")
     expect(localValidationPackagingScript).toContain("['--config', 'electron-builder.local-validation.yml'")
@@ -74,8 +79,21 @@ describe('Windows staging packaging foundation', () => {
     expect(localValidationBuilderConfig).toContain('productName: NotiVenta Agent Local Validation')
     expect(localValidationBuilderConfig).toContain('output: dist/local-validation')
     expect(localValidationBuilderConfig).toContain('NotiVenta-Local-Validation-Setup-${version}-${arch}.${ext}')
+    expect(localValidationBuilderConfig).toContain('- x64')
     expect(localValidationBuilderConfig).toContain('- arm64')
-    expect(localValidationBuilderConfig).not.toContain('- x64')
+  })
+
+  it('packages the fixed diagnostic asset and retains the Main, Preload, and Renderer print path', () => {
+    for (const config of [builderConfig, localValidationBuilderConfig]) {
+      expect(config).toContain('from: resources/diagnostic-label.html')
+      expect(config).toContain('to: diagnostic/diagnostic-label.html')
+    }
+    expect(mainSource).toContain('createDiagnosticLabelPrintRequest({')
+    expect(mainSource).toContain('windowsPrinter.print(diagnosticLabelRequest)')
+    const preloadSource = readFileSync(resolve('src/preload/index.ts'), 'utf8')
+    const rendererSource = readFileSync(resolve('src/renderer/src/App.tsx'), 'utf8')
+    expect(preloadSource).toContain('printTestLabel: () => ipcRenderer.invoke(IPC_CHANNELS.printTestLabel)')
+    expect(rendererSource).toContain("'Print Test Label'")
   })
 
   it('reports a packaged keyring load failure without continuing to pairing', () => {

@@ -129,6 +129,20 @@ queued job, and acknowledge it without duplicate dispatch. This is not a Phase
 4 claim of printer support: no label download, spooler, printer API, or physical
 output was used. See the backend local-testing guide for the full replay.
 
+## P1.6D PDF-rendering acceptance — 2026-10-10
+
+On Windows 11 ARM64, the Agent P1.6D rendering boundary passed a local virtual
+printer acceptance check at commit `ac96601`. A harmless, one-page 4 × 6-inch
+portrait fixture was rasterized at 300 DPI, loaded through Electron as the
+generated local HTML/PNG print document, submitted only to **Microsoft Print to
+PDF**, and then inspected. The resulting PDF was readable, one page, portrait,
+and measured exactly 4 × 6 inches with `pdf-lib`.
+
+This confirms the local PDF.js-raster-to-Electron print path and avoids the
+Windows Chromium PDF-viewer black-page behavior. It does **not** prove WHTP203e
+compatibility, driver/media calibration, physical output, barcode scan quality,
+packaged-installer behavior, or a Mercado Libre/PrintAttempt lifecycle.
+
 ## Credential persistence and restart
 
 After successful DEV pairing:

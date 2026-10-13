@@ -83,8 +83,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-validation\package-ag
 
 Choose **Staging** for the HTTPS Railway staging package. It checks out
 `staging` and embeds `https://notiventabe-staging.up.railway.app`. Choose
-**Local VM validation** only in the ARM64 Windows VM; it checks out `dev` and
-uses the separate, fixed `http://192.168.64.1:8000` local-validation identity.
+**Local VM validation** for a matching x64 or ARM64 Windows machine; it checks
+out `dev` and uses the separate, fixed `http://192.168.64.1:8000`
+local-validation identity.
 The helper refuses a checkout with local changes and does not reset, stash, or
 overwrite work.
 
@@ -104,24 +105,26 @@ session** to check out `staging` and launch unpackaged Electron against
 a packaged-installer validation. The helper installs dependencies only when
 they are missing or changed and repairs a missing Electron development binary.
 
-## Windows ARM64 local-VM validation packaging
+## Windows local-validation packaging
 
-The Phase 5.4 Windows ARM64 VM has one separate, non-release package for the
-fixed local backend `http://192.168.64.1:8000`. It is neither a staging nor a
-production artifact, and its local-validation identity and HTTP destination are
-embedded at package time. It does not read backend configuration from the
-runtime environment.
+The Windows VM path has one separate, non-release package for the fixed local
+backend `http://192.168.64.1:8000`. It supports matching x64 and ARM64
+Windows/Node installations. It is neither a staging nor a production artifact,
+and its local-validation identity and HTTP destination are embedded at package
+time. It does not read backend configuration from the runtime environment.
 
-Run this only from the ARM64 Windows VM with ARM64 Node/npm:
+Run from the matching Windows architecture and use one command:
 
 ```powershell
 npm ci
 npm test
 npm run typecheck
+npm run package:local-validation:win:x64
+# or
 npm run package:local-validation:win:arm64
 ```
 
-The installer is `dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-arm64.exe`.
+The installer is `dist/local-validation/NotiVenta-Local-Validation-Setup-<version>-<arch>.exe`.
 The normal `package:staging:*` commands still require a credential-free,
 non-local HTTPS staging origin.
 
@@ -175,8 +178,12 @@ an assignment is pending**; it does not mean the seller's Mercado Libre account
 is disconnected. Do not re-pair, restart to force a poll, or alter the held
 assignment merely to refresh that display.
 
-Not implemented: real printers, label files, physical printing, print
-retry/requeue, production signing, or auto-update.
+The current development branch implements supervised Mercado Libre
+shipping-label retrieval, local label preparation, explicit physical submission,
+and durable result containment. This is not a released production capability.
+Automatic printing, automatic retry/requeue, production signing, and auto-update
+remain unimplemented. P0 adds one explicit, Agent-local diagnostic submission
+path only; it never creates or changes a PrintJob, PrintAttempt, or AgentEvent.
 
 PF0 now locks the contract for the future receipt-to-result lifecycle without
 implementing those components. The same backend-owned `RECEIVED` assignment
@@ -246,6 +253,22 @@ to PDF: the real UI discovered and explicitly selected the queue, displayed
 the fixed profile and local readiness, and restored selection/readiness after
 Windows logout/login. No print command ran. This is not WHTP203e, spooler, or
 physical-printer validation; those remain deferred.
+
+P0 diagnostic printing was physically exercised once on 2026-10-09 with a
+Westinghouse WHTP203e on a real Windows x64 computer. The Agent discovered the
+explicitly selected queue, reported local `READY`, and Windows produced one
+physical diagnostic label. This proves one local submission/output path only.
+The measured 4 × 6 geometry/alignment and restart-persistence acceptance remain
+open; Windows acceptance is never proof of spooler health or a successful
+future shipping label.
+
+The diagnostic feature owns a bundled 4 × 6 HTML document, resolves it from the
+installed resources directory, targets only the explicitly selected queue with
+fixed one-copy/no-margin settings, and exposes one trusted `Print Test Label`
+action when local readiness is `READY`. Its result means only submitted to
+Windows, failed, or indeterminate; it never claims physical output. Matching
+x64 and ARM64 local-validation installers include the diagnostic asset.
+WHTP203e calibration and restart acceptance remain manual Windows steps.
 
 Phase 5.2 completed the Windows staging packaging foundation. On 2026-10-06,
 an installed packaged Agent on the Windows ARM64 VM passed the local-HTTP
