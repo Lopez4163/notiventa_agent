@@ -26,6 +26,11 @@ last command with:
 npm run package:staging:win:arm64
 ```
 
+The interactive package helper intentionally checks out its configured
+`staging` or `dev` branch. Do not use it to validate an exact feature-branch
+checkpoint. For a clean checkout already pinned to the intended commit, run the
+direct architecture-specific package command documented below instead.
+
 The build refuses non-Windows hosts, mismatched Node/target architectures,
 missing URLs, local URLs, credentials in URLs, non-HTTPS staging origins, and a
 missing architecture-matched Windows `@napi-rs/keyring` binary.
@@ -293,11 +298,12 @@ readiness, real-Windows-hardware validation, code signing, or Phase 5.5 work.
 
 ## P1.6F installed-package acceptance — 2026-10-13
 
-The local-validation ARM64 installer built from the local Agent checkpoint
-`c1e6eb5` plus the uncommitted terminal-state UI correction completed an
-isolated P1.6F2 acceptance run. The test used a separate local PostgreSQL,
-Redis, Dummy Mercado Libre, API, and frontend environment. No staging,
-production, real Mercado Libre shipment, or physical printer was used.
+The local-validation ARM64 installer built from Agent commit `86130a0`
+completed an isolated P1.6F2 acceptance run. That commit includes the
+terminal-state UI correction that clears the rendered shipping label after an
+acknowledged terminal result. The test used a separate local PostgreSQL, Redis,
+Dummy Mercado Libre, API, and frontend environment. No staging, production,
+real Mercado Libre shipment, or physical printer was used.
 
 ```text
 Architecture: ARM64
