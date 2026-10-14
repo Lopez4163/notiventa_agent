@@ -200,6 +200,11 @@ Automatic printing, automatic retry/requeue, production signing, and auto-update
 remain unimplemented. P0 adds one explicit, Agent-local diagnostic submission
 path only; it never creates or changes a PrintJob, PrintAttempt, or AgentEvent.
 
+Approved Phase 8 browser resolution does not change this boundary: only the
+authenticated workstation may request an eligible retry, and that request only
+returns work to Backend-guarded dispatch. The Agent never decides, schedules,
+or directly performs a retry.
+
 PF0 now locks the contract for the future receipt-to-result lifecycle without
 implementing those components. The same backend-owned `RECEIVED` assignment
 will be orchestrated by an Electron Main `PrintCoordinator` and a
