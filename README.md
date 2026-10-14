@@ -48,6 +48,21 @@ npm run typecheck
 npm run build
 ```
 
+## Testing and acceptance cadence
+
+Follow the shared [NotiVenta testing and acceptance policy](https://github.com/Lopez4163/notiventa_be/blob/dev/TESTING.md).
+During an Agent subphase, run the focused relevant tests and the applicable
+`npm test`, `npm run typecheck`, and `npm run build` checks before committing a
+feature-branch checkpoint. Comprehensive manual UI acceptance is coordinated at
+full-phase software completion unless the subphase explicitly requires manual
+platform evidence.
+
+The Windows packaging and validation documents below remain mandatory separate
+platform/hardware gates. Local development and GitHub `dev` integration do not
+substitute for explicit staging promotion, Windows x64, installer, WHTP203e,
+calibration, or physical fault-testing acceptance; unavailable hardware must
+not delay independent software work.
+
 ## Windows staging packaging
 
 Phase 5 packaging uses electron-builder and an NSIS `.exe` installer. Official
